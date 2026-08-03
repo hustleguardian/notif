@@ -198,11 +198,11 @@ test('evalActivity: anchors on the most recent completion, not createdAt', () =>
 
 // --- buildDigest ---
 
-test('buildDigest: groups amber/red activities by unit, ignores green ones', () => {
+test('buildDigest: groups amber/red activities by unit, ignores green ones that have been completed', () => {
   const now = new Date('2026-01-11T00:00:00.000Z');
   const activities = [
     { name: 'Overdue daily', intervalCount: 10, intervalUnit: 'day', createdAt: '2026-01-01T00:00:00.000Z', completions: [], endDate: null },
-    { name: 'Fresh weekly', intervalCount: 1, intervalUnit: 'week', createdAt: now.toISOString(), completions: [], endDate: null },
+    { name: 'Recently done weekly', intervalCount: 1, intervalUnit: 'week', createdAt: '2026-01-01T00:00:00.000Z', completions: [now.toISOString()], endDate: null },
   ];
   const digest = buildDigest(activities, [], now);
   assert.deepEqual(digest.today, ['Overdue daily']);
@@ -219,14 +219,22 @@ test('buildDigest: excludes ended activities entirely', () => {
   assert.equal(digest.hasDayActivities, false);
 });
 
-test('buildDigest: hasDayActivities is true even when all day activities are green', () => {
+test('buildDigest: hasDayActivities is true when a green never-completed day activity exists', () => {
   const now = new Date('2026-01-11T00:00:00.000Z');
   const activities = [
-    { name: 'Just done', intervalCount: 5, intervalUnit: 'day', createdAt: now.toISOString(), completions: [], endDate: null },
+    { name: 'Never done', intervalCount: 5, intervalUnit: 'day', createdAt: now.toISOString(), completions: [], endDate: null },
+  ];
+  const digest = buildDigest(activities, [], now);
+  assert.equal(digest.hasDayActivities, true);
+});
+
+test('buildDigest: a green activity that HAS been completed does not appear as outstanding', () => {
+  const now = new Date('2026-01-11T00:00:00.000Z');
+  const activities = [
+    { name: 'Recently done', intervalCount: 5, intervalUnit: 'day', createdAt: '2026-01-01T00:00:00.000Z', completions: [now.toISOString()], endDate: null },
   ];
   const digest = buildDigest(activities, [], now);
   assert.deepEqual(digest.today, []);
-  assert.equal(digest.hasDayActivities, true);
 });
 
 test('buildDigest: a fresh "tous les jours" (daily) activity appears in today even though it is green', () => {
@@ -252,14 +260,14 @@ test('buildDigest: a "tous les jours" activity drops out of today once completed
   assert.deepEqual(digest.today, []);
 });
 
-test('buildDigest: a non-literal-daily cadence ("tous les 3 jours") still uses the amber/red rule, not the completed-today rule', () => {
+test('buildDigest: a non-literal-daily cadence ("tous les 3 jours") already completed uses the amber/red rule, not completed-today', () => {
   const now = new Date(2026, 2, 15, 10, 0);
   const activities = [
-    { name: 'Every 3 days', intervalCount: 3, intervalUnit: 'day', createdAt: now.toISOString(), completions: [], endDate: null },
+    { name: 'Every 3 days', intervalCount: 3, intervalUnit: 'day', createdAt: '2026-02-01T00:00:00.000Z', completions: [now.toISOString()], endDate: null },
   ];
   const digest = buildDigest(activities, [], now);
-  // Freshly created 3-day cadence is green (plenty of time left), so it should NOT
-  // show up in today's digest yet — unlike a literal "tous les jours" habit.
+  // Just completed, still green (plenty of time left in this 3-day cycle) — should NOT
+  // show up in today's digest, unlike a literal "tous les jours" habit which would.
   assert.deepEqual(digest.today, []);
 });
 
@@ -282,9 +290,20 @@ test('isOutstanding: a "tous les jours" habit already completed today is not out
   assert.equal(isOutstanding(act, now), false);
 });
 
-test('isOutstanding: a fresh non-literal-daily cadence (green) is not outstanding', () => {
+test('isOutstanding: a never-completed activity is always outstanding, even if freshly created (green)', () => {
   const now = new Date(2026, 2, 15, 10, 0);
   const act = { intervalCount: 3, intervalUnit: 'day', createdAt: now.toISOString(), completions: [], endDate: null };
+  assert.equal(isOutstanding(act, now), true);
+});
+
+test('isOutstanding: a non-literal-daily cadence that HAS been completed and is still green is not outstanding', () => {
+  const now = new Date(2026, 2, 15, 10, 0);
+  const act = {
+    intervalCount: 3, intervalUnit: 'day',
+    createdAt: '2026-03-01T00:00:00.000Z',
+    completions: [now.toISOString()],
+    endDate: null,
+  };
   assert.equal(isOutstanding(act, now), false);
 });
 

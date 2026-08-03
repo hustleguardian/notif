@@ -94,6 +94,10 @@
   function isOutstanding(act, now) {
     const st = evalActivity(act, now);
     if (st.status === 'ended') return false;
+    // Never actually completed, ever — always outstanding regardless of color.
+    // A fresh activity is "green" just because its cycle hasn't expired yet,
+    // not because it was done; showing it as "Fait" would be a false claim.
+    if (act.completions.length === 0) return true;
     const isDailyHabit = act.intervalUnit === 'day' && act.intervalCount === 1;
     if (isDailyHabit) {
       const todayStr = dateStrDaysAgo(now, 0);
