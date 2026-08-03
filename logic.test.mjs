@@ -6,6 +6,7 @@ const {
   getNow, nextDueDate, formatFrequency, computeCycleStatus, migrateActivity,
   dateStrDaysAgo, completionIsoForDateStr, evalActivity, buildDigest,
   formatDigestNotification, nextCheckpointToFire, isOutstanding,
+  priorityLabel, sortTodos,
 } = CadenceLogic;
 
 test('getNow returns real date when no fake date given', () => {
@@ -203,7 +204,7 @@ test('buildDigest: groups amber/red activities by unit, ignores green ones', () 
     { name: 'Overdue daily', intervalCount: 10, intervalUnit: 'day', createdAt: '2026-01-01T00:00:00.000Z', completions: [], endDate: null },
     { name: 'Fresh weekly', intervalCount: 1, intervalUnit: 'week', createdAt: now.toISOString(), completions: [], endDate: null },
   ];
-  const digest = buildDigest(activities, now);
+  const digest = buildDigest(activities, [], now);
   assert.deepEqual(digest.today, ['Overdue daily']);
   assert.deepEqual(digest.week, []);
 });
@@ -213,7 +214,7 @@ test('buildDigest: excludes ended activities entirely', () => {
   const activities = [
     { name: 'Old one', intervalCount: 1, intervalUnit: 'day', createdAt: '2020-01-01T00:00:00.000Z', completions: [], endDate: '2020-02-01' },
   ];
-  const digest = buildDigest(activities, now);
+  const digest = buildDigest(activities, [], now);
   assert.deepEqual(digest.today, []);
   assert.equal(digest.hasDayActivities, false);
 });
@@ -223,7 +224,7 @@ test('buildDigest: hasDayActivities is true even when all day activities are gre
   const activities = [
     { name: 'Just done', intervalCount: 5, intervalUnit: 'day', createdAt: now.toISOString(), completions: [], endDate: null },
   ];
-  const digest = buildDigest(activities, now);
+  const digest = buildDigest(activities, [], now);
   assert.deepEqual(digest.today, []);
   assert.equal(digest.hasDayActivities, true);
 });
@@ -233,7 +234,7 @@ test('buildDigest: a fresh "tous les jours" (daily) activity appears in today ev
   const activities = [
     { name: 'Muscu', intervalCount: 1, intervalUnit: 'day', createdAt: now.toISOString(), completions: [], endDate: null },
   ];
-  const digest = buildDigest(activities, now);
+  const digest = buildDigest(activities, [], now);
   assert.deepEqual(digest.today, ['Muscu']);
 });
 
@@ -247,7 +248,7 @@ test('buildDigest: a "tous les jours" activity drops out of today once completed
       endDate: null,
     },
   ];
-  const digest = buildDigest(activities, now);
+  const digest = buildDigest(activities, [], now);
   assert.deepEqual(digest.today, []);
 });
 
@@ -256,7 +257,7 @@ test('buildDigest: a non-literal-daily cadence ("tous les 3 jours") still uses t
   const activities = [
     { name: 'Every 3 days', intervalCount: 3, intervalUnit: 'day', createdAt: now.toISOString(), completions: [], endDate: null },
   ];
-  const digest = buildDigest(activities, now);
+  const digest = buildDigest(activities, [], now);
   // Freshly created 3-day cadence is green (plenty of time left), so it should NOT
   // show up in today's digest yet — unlike a literal "tous les jours" habit.
   assert.deepEqual(digest.today, []);
@@ -304,7 +305,7 @@ test('buildDigest: hasDayActivities is false when there are no day-unit activiti
   const activities = [
     { name: 'Monthly thing', intervalCount: 1, intervalUnit: 'month', createdAt: now.toISOString(), completions: [], endDate: null },
   ];
-  const digest = buildDigest(activities, now);
+  const digest = buildDigest(activities, [], now);
   assert.equal(digest.hasDayActivities, false);
 });
 
@@ -378,4 +379,68 @@ test('nextCheckpointToFire: stale state from a previous day resets and treats to
   const state = { date: '2026-03-14', sent: { morning: true, midday: true, evening: true } };
   const { checkpointId } = nextCheckpointToFire(now, state);
   assert.equal(checkpointId, 'morning');
+});
+
+// --- priorityLabel ---
+
+test('priorityLabel: maps each priority to its French label', () => {
+  assert.equal(priorityLabel('high'), 'Haute');
+  assert.equal(priorityLabel('medium'), 'Moyenne');
+  assert.equal(priorityLabel('low'), 'Basse');
+});
+
+// --- sortTodos ---
+
+test('sortTodos: undone tasks come before done tasks', () => {
+  const todos = [
+    { id: 't1', name: 'Done one', priority: 'high', done: true },
+    { id: 't2', name: 'Not done', priority: 'low', done: false },
+  ];
+  const sorted = sortTodos(todos);
+  assert.deepEqual(sorted.map(t => t.id), ['t2', 't1']);
+});
+
+test('sortTodos: within the same done-state, higher priority comes first', () => {
+  const todos = [
+    { id: 't1', name: 'Low', priority: 'low', done: false },
+    { id: 't2', name: 'High', priority: 'high', done: false },
+    { id: 't3', name: 'Medium', priority: 'medium', done: false },
+  ];
+  const sorted = sortTodos(todos);
+  assert.deepEqual(sorted.map(t => t.id), ['t2', 't3', 't1']);
+});
+
+test('sortTodos: does not mutate the input array', () => {
+  const todos = [
+    { id: 't1', name: 'Low', priority: 'low', done: false },
+    { id: 't2', name: 'High', priority: 'high', done: false },
+  ];
+  const original = [...todos];
+  sortTodos(todos);
+  assert.deepEqual(todos, original);
+});
+
+// --- buildDigest / formatDigestNotification with todos ---
+
+test('buildDigest: includes undone todos sorted by priority, excludes done ones', () => {
+  const now = new Date('2026-01-11T00:00:00.000Z');
+  const todos = [
+    { id: 't1', name: 'Low task', priority: 'low', done: false },
+    { id: 't2', name: 'High task', priority: 'high', done: false },
+    { id: 't3', name: 'Finished task', priority: 'high', done: true },
+  ];
+  const digest = buildDigest([], todos, now);
+  assert.deepEqual(digest.todo, ['High task', 'Low task']);
+});
+
+test('formatDigestNotification: adds an "À faire" line when todos are outstanding', () => {
+  const digest = { today: [], week: [], month: [], todo: ['High task', 'Low task'], hasDayActivities: false };
+  const result = formatDigestNotification(digest);
+  assert.equal(result.body, 'À faire : High task, Low task');
+});
+
+test('formatDigestNotification: omits the "À faire" line when there are no outstanding todos', () => {
+  const digest = { today: [], week: ['Étirement'], month: [], todo: [], hasDayActivities: false };
+  const result = formatDigestNotification(digest);
+  assert.equal(result.body, 'Cette semaine : Étirement');
 });

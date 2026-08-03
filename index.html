@@ -229,6 +229,24 @@
     padding:6px 10px; border-radius:8px; font-size:12px; font-family:inherit; cursor:pointer;
   }
 
+  .todos-section{margin-top:28px;}
+  .todos-header{display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;}
+  .todos-header h2{font-family:'Fraunces', serif; font-size:19px; margin:0; font-weight:600;}
+  .todos-header button{
+    background:none; border:1px solid var(--line); color:var(--teal);
+    padding:6px 12px; border-radius:8px; font-size:12px; font-family:inherit; font-weight:600; cursor:pointer;
+  }
+  .todo-list{display:flex; flex-direction:column; gap:8px;}
+  .todo-row{
+    display:flex; align-items:center; gap:10px;
+    background:var(--card); border:1px solid var(--line); border-radius:14px; padding:12px 14px;
+  }
+  .todo-row input[type=checkbox]{width:18px; height:18px; flex-shrink:0; accent-color:var(--teal); cursor:pointer;}
+  .todo-name{flex:1; font-size:14px; min-width:0;}
+  .todo-row.done .todo-name{color:var(--muted); text-decoration:line-through;}
+  .todo-del{background:none; border:none; color:var(--muted); font-size:11px; cursor:pointer; font-family:inherit; flex-shrink:0;}
+  .todo-empty{color:var(--muted); font-size:13px; padding:8px 2px;}
+
   ::selection{background:rgba(63,191,174,0.3);}
 </style>
 </head>
@@ -258,6 +276,16 @@
     <div class="glyph">◐</div>
     <div>Aucun rituel pour l'instant.<br>Ajoute la première activité à suivre.</div>
   </div>
+
+  <div class="todos-section">
+    <div class="todos-header">
+      <h2>Tes tâches</h2>
+      <button type="button" id="addTodoBtn">+ Ajouter</button>
+    </div>
+    <div class="todo-list" id="todoList"></div>
+    <div class="todo-empty" id="todoEmpty" style="display:none;">Aucune tâche pour l'instant.</div>
+  </div>
+
   <details class="test-panel" id="testPanel">
     <summary>Mode test</summary>
     <div class="field">
@@ -333,6 +361,28 @@
   </div>
 </div>
 
+<div class="sheet-bg" id="todoSheetBg">
+  <div class="sheet">
+    <h2>Nouvelle tâche</h2>
+    <div class="field">
+      <label>Nom</label>
+      <input id="tName" placeholder="ex. Appeler le dentiste">
+    </div>
+    <div class="field">
+      <label>Priorité</label>
+      <div class="seg">
+        <button type="button" class="prio-btn" data-priority="high">Haute</button>
+        <button type="button" class="prio-btn active" data-priority="medium">Moyenne</button>
+        <button type="button" class="prio-btn" data-priority="low">Basse</button>
+      </div>
+    </div>
+    <div class="sheet-actions">
+      <button class="cancel" id="todoCancelBtn">Annuler</button>
+      <button class="save" id="todoSaveBtn">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script src="logic.js"></script>
@@ -340,6 +390,8 @@
 let activities = [];
 let editingId = null;
 let fakeNow = null;
+let todos = [];
+let todoPriority = 'medium';
 
 function uid(){ return 'a_' + Date.now() + '_' + Math.floor(Math.random()*10000); }
 
@@ -439,6 +491,7 @@ async function loadData(){
   const didMigrate = migrated.some((act, i) => act !== activities[i]);
   activities = migrated;
   if(didMigrate) await saveData();
+  todos = await loadTodos();
   refreshFakeNowUI();
   render();
 }
@@ -449,6 +502,32 @@ async function saveData(){
       await window.storage.set('activities', JSON.stringify(activities), false);
     } else {
       localStorage.setItem('cadence_activities', JSON.stringify(activities));
+    }
+  }catch(e){
+    console.error('Erreur de sauvegarde', e);
+  }
+}
+
+async function loadTodos(){
+  try{
+    if(hasCloudStorage){
+      const res = await window.storage.get('todos', false);
+      return res ? JSON.parse(res.value) : [];
+    } else {
+      const raw = localStorage.getItem('cadence_todos');
+      return raw ? JSON.parse(raw) : [];
+    }
+  }catch(e){
+    return [];
+  }
+}
+
+async function saveTodos(){
+  try{
+    if(hasCloudStorage){
+      await window.storage.set('todos', JSON.stringify(todos), false);
+    } else {
+      localStorage.setItem('cadence_todos', JSON.stringify(todos));
     }
   }catch(e){
     console.error('Erreur de sauvegarde', e);
@@ -475,6 +554,8 @@ function dialSVG(pct, color){
 }
 
 function render(){
+  renderTodos();
+
   const list = document.getElementById('list');
   const empty = document.getElementById('empty');
   const banner = document.getElementById('banner');
@@ -552,6 +633,28 @@ function render(){
   }
 }
 
+function renderTodos(){
+  const todoList = document.getElementById('todoList');
+  const todoEmpty = document.getElementById('todoEmpty');
+
+  if(todos.length === 0){
+    todoList.innerHTML = '';
+    todoEmpty.style.display = 'block';
+    return;
+  }
+  todoEmpty.style.display = 'none';
+
+  const tagClass = { high: 'red', medium: 'amber', low: 'grey' };
+  todoList.innerHTML = CadenceLogic.sortTodos(todos).map(t => `
+    <div class="todo-row ${t.done ? 'done' : ''}">
+      <input type="checkbox" ${t.done ? 'checked' : ''} onchange="toggleTodoDone('${t.id}')">
+      <span class="todo-name">${escapeHtml(t.name)}</span>
+      <span class="tag ${tagClass[t.priority]}">${CadenceLogic.priorityLabel(t.priority)}</span>
+      <button class="todo-del" onclick="removeTodo('${t.id}')">Supprimer</button>
+    </div>
+  `).join('');
+}
+
 function escapeHtml(s){
   return s.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 }
@@ -625,6 +728,51 @@ async function removeActivity(id){
   await saveData();
   render();
 }
+
+async function toggleTodoDone(id){
+  const t = todos.find(t => t.id === id);
+  if(!t) return;
+  t.done = !t.done;
+  await saveTodos();
+  render();
+}
+
+async function removeTodo(id){
+  todos = todos.filter(t => t.id !== id);
+  await saveTodos();
+  render();
+}
+
+// Todo sheet handling
+const todoSheetBg = document.getElementById('todoSheetBg');
+
+document.getElementById('addTodoBtn').onclick = () => {
+  document.getElementById('tName').value = '';
+  todoPriority = 'medium';
+  document.querySelectorAll('.prio-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.priority === 'medium');
+  });
+  todoSheetBg.classList.add('show');
+};
+
+document.querySelectorAll('.prio-btn').forEach(btn => {
+  btn.onclick = () => {
+    todoPriority = btn.dataset.priority;
+    document.querySelectorAll('.prio-btn').forEach(b => b.classList.toggle('active', b === btn));
+  };
+});
+
+document.getElementById('todoCancelBtn').onclick = () => todoSheetBg.classList.remove('show');
+todoSheetBg.onclick = (e) => { if(e.target === todoSheetBg) todoSheetBg.classList.remove('show'); };
+
+document.getElementById('todoSaveBtn').onclick = async () => {
+  const name = document.getElementById('tName').value.trim();
+  if(!name) return;
+  todos.push({ id: uid(), name, priority: todoPriority, done: false, createdAt: appNow().toISOString() });
+  await saveTodos();
+  todoSheetBg.classList.remove('show');
+  render();
+};
 
 // Sheet handling
 const sheetBg = document.getElementById('sheetBg');
@@ -770,7 +918,7 @@ notifBtn.onclick = async () => {
 
   if(Notification.permission === 'granted'){
     try{
-      const digest = CadenceLogic.buildDigest(activities, appNow());
+      const digest = CadenceLogic.buildDigest(activities, todos, appNow());
       const { title, body } = CadenceLogic.formatDigestNotification(digest);
       await notify(title, {
         body: body || 'Ceci est un test — si tu vois ça, les notifications marchent. Rien à signaler pour le moment.',
@@ -806,7 +954,7 @@ async function checkAndNotify(){
   const { checkpointId, newState } = CadenceLogic.nextCheckpointToFire(now, state);
   await saveCheckpointState(newState);
   if(!checkpointId) return;
-  const digest = CadenceLogic.buildDigest(activities, now);
+  const digest = CadenceLogic.buildDigest(activities, todos, now);
   const { title, body } = CadenceLogic.formatDigestNotification(digest);
   if(!body) return;
   notify(title, { body }).catch(() => {});

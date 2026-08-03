@@ -102,7 +102,23 @@
     return st.status === 'amber' || st.status === 'red';
   }
 
-  function buildDigest(activities, now) {
+  const PRIORITY_RANK = { high: 0, medium: 1, low: 2 };
+  const PRIORITY_LABELS = { high: 'Haute', medium: 'Moyenne', low: 'Basse' };
+
+  function priorityLabel(priority) {
+    const label = PRIORITY_LABELS[priority];
+    if (!label) throw new Error('Unknown priority: ' + priority);
+    return label;
+  }
+
+  function sortTodos(todos) {
+    return [...todos].sort((a, b) => {
+      if (a.done !== b.done) return a.done ? 1 : -1;
+      return PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority];
+    });
+  }
+
+  function buildDigest(activities, todos, now) {
     const groups = { day: [], week: [], month: [] };
     let hasDayActivities = false;
     for (const act of activities) {
@@ -113,7 +129,8 @@
         groups[act.intervalUnit].push(act.name);
       }
     }
-    return { today: groups.day, week: groups.week, month: groups.month, hasDayActivities };
+    const todo = sortTodos(todos).filter(t => !t.done).map(t => t.name);
+    return { today: groups.day, week: groups.week, month: groups.month, todo, hasDayActivities };
   }
 
   function formatDigestNotification(digest) {
@@ -125,6 +142,7 @@
     }
     if (digest.week.length > 0) lines.push(`Cette semaine : ${digest.week.join(', ')}`);
     if (digest.month.length > 0) lines.push(`Ce mois : ${digest.month.join(', ')}`);
+    if (digest.todo && digest.todo.length > 0) lines.push(`À faire : ${digest.todo.join(', ')}`);
     return { title: 'Cadence', body: lines.join('\n') };
   }
 
@@ -164,7 +182,7 @@
   const api = {
     getNow, nextDueDate, formatFrequency, computeCycleStatus, migrateActivity,
     dateStrDaysAgo, completionIsoForDateStr, evalActivity, isOutstanding, buildDigest,
-    formatDigestNotification, nextCheckpointToFire,
+    formatDigestNotification, nextCheckpointToFire, priorityLabel, sortTodos,
   };
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = api;
