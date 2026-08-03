@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>Cadence</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Space+Mono:wght@400;700&family=Inter:wght@400;500;600&display=swap');
+
+  :root{
+    --ink:#0F1720;
+    --card:#171F29;
+    --card2:#1D2733;
+    --line:rgba(255,255,255,0.08);
+    --text:#EDEFF2;
+    --muted:#8892A0;
+    --teal:#3FBFAE;
+    --amber:#F2A93B;
+    --red:#E2574C;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--ink);
+    color:var(--text);
+    font-family:'Inter', sans-serif;
+    min-height:100vh;
+    padding-bottom:100px;
+  }
+  .wrap{max-width:520px; margin:0 auto; padding:24px 18px 0;}
+
+  header{margin-bottom:18px;}
+  .eyebrow{
+    font-family:'Space Mono', monospace;
+    font-size:11px;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--teal);
+    margin-bottom:6px;
+  }
+  h1{
+    font-family:'Fraunces', serif;
+    font-weight:600;
+    font-size:34px;
+    line-height:1.05;
+    margin:0 0 4px;
+    letter-spacing:-0.01em;
+  }
+  .sub{color:var(--muted); font-size:14px; margin:0;}
+
+  .banner{
+    margin-top:16px;
+    padding:14px 16px;
+    border-radius:14px;
+    background:rgba(226,87,76,0.12);
+    border:1px solid rgba(226,87,76,0.35);
+    font-size:13.5px;
+    line-height:1.5;
+    display:none;
+  }
+  .banner.show{display:block;}
+  .banner b{color:var(--red);}
+
+  .notif-row{
+    margin-top:14px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:10px 14px;
+    font-size:12.5px;
+    color:var(--muted);
+  }
+  .notif-row button{
+    background:none; border:1px solid var(--line); color:var(--text);
+    padding:6px 10px; border-radius:8px; font-size:12px; font-family:inherit; cursor:pointer;
+  }
+  .notif-row button:active{transform:scale(0.97);}
+  .notif-row .on{color:var(--teal); border-color:rgba(63,191,174,0.4);}
+
+  .list{margin-top:20px; display:flex; flex-direction:column; gap:12px;}
+
+  .card{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:18px;
+    padding:16px;
+    display:flex;
+    align-items:center;
+    gap:14px;
+  }
+  .dial{flex-shrink:0; width:56px; height:56px; position:relative;}
+  .dial svg{transform:rotate(-90deg);}
+  .dial .count{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    font-family:'Space Mono', monospace; font-weight:700; font-size:14px;
+  }
+
+  .info{flex:1; min-width:0;}
+  .name{font-size:16px; font-weight:600; margin:0 0 2px;}
+  .freq{
+    font-family:'Space Mono', monospace;
+    font-size:11.5px;
+    color:var(--muted);
+    display:flex; align-items:center; gap:6px;
+  }
+  .tag{
+    display:inline-block; padding:2px 7px; border-radius:6px; font-size:10px;
+    font-family:'Space Mono', monospace; letter-spacing:.03em; margin-top:6px;
+  }
+  .tag.green{background:rgba(63,191,174,0.15); color:var(--teal);}
+  .tag.amber{background:rgba(242,169,59,0.15); color:var(--amber);}
+  .tag.red{background:rgba(226,87,76,0.15); color:var(--red);}
+  .tag.grey{background:rgba(255,255,255,0.08); color:var(--muted);}
+  .card.ended{opacity:0.55;}
+  .name{cursor:pointer;}
+
+  .seg{display:flex; background:var(--card2); border-radius:10px; padding:3px; gap:3px;}
+  .seg button{
+    flex:1; background:none; border:none; color:var(--muted); font-family:inherit;
+    font-size:13px; padding:9px 8px; border-radius:8px; cursor:pointer;
+  }
+  .seg button.active{background:var(--teal); color:#08201C; font-weight:600;}
+
+  .actions{display:flex; flex-direction:column; gap:6px; flex-shrink:0;}
+  .btn-check{
+    background:var(--teal); color:#08201C; border:none; border-radius:10px;
+    padding:9px 12px; font-family:inherit; font-weight:600; font-size:12px; cursor:pointer;
+  }
+  .btn-check:active{transform:scale(0.96);}
+  .btn-del{
+    background:none; border:none; color:var(--muted); font-size:11px; cursor:pointer; font-family:inherit;
+  }
+
+  .empty{
+    text-align:center; padding:60px 20px; color:var(--muted);
+  }
+  .empty .glyph{font-family:'Fraunces', serif; font-size:40px; color:var(--card2); margin-bottom:8px;}
+
+  .fab{
+    position:fixed; left:50%; bottom:24px; transform:translateX(-50%);
+    width:calc(100% - 36px); max-width:484px;
+    background:var(--teal); color:#08201C;
+    border:none; border-radius:16px; padding:16px;
+    font-family:'Inter', sans-serif; font-weight:600; font-size:15px;
+    cursor:pointer; box-shadow:0 8px 24px rgba(63,191,174,0.25);
+  }
+  .fab:active{transform:translateX(-50%) scale(0.98);}
+
+  .sheet-bg{
+    position:fixed; inset:0; background:rgba(0,0,0,0.5); display:none;
+    align-items:flex-end; z-index:20;
+  }
+  .sheet-bg.show{display:flex;}
+  .sheet{
+    background:var(--card); width:100%; border-radius:22px 22px 0 0;
+    padding:22px 20px 28px; max-width:520px; margin:0 auto;
+  }
+  .sheet h2{font-family:'Fraunces', serif; font-size:22px; margin:0 0 16px; font-weight:600;}
+  .field{margin-bottom:14px;}
+  .field label{display:block; font-size:12px; color:var(--muted); margin-bottom:6px; font-family:'Space Mono', monospace; letter-spacing:.03em;}
+  .field input, .field select{
+    width:100%; background:var(--card2); border:1px solid var(--line); color:var(--text);
+    border-radius:10px; padding:12px; font-size:15px; font-family:inherit;
+  }
+  .freq-row{display:flex; gap:10px;}
+  .freq-row .field{flex:1;}
+  .sheet-actions{display:flex; gap:10px; margin-top:6px;}
+  .sheet-actions button{
+    flex:1; border:none; border-radius:12px; padding:13px; font-weight:600; font-size:14px; font-family:inherit; cursor:pointer;
+  }
+  .cancel{background:var(--card2); color:var(--text);}
+  .save{background:var(--teal); color:#08201C;}
+
+  ::selection{background:rgba(63,191,174,0.3);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Cadence</div>
+    <h1>Tes rituels</h1>
+    <p class="sub">Ce que tu veux faire, et à quel rythme.</p>
+    <div class="banner" id="banner"></div>
+    <div class="notif-row">
+      <span id="notifLabel">Notifications désactivées</span>
+      <button id="notifBtn">Activer</button>
+    </div>
+  </header>
+
+  <div class="list" id="list"></div>
+  <div class="empty" id="empty" style="display:none;">
+    <div class="glyph">◐</div>
+    <div>Aucun rituel pour l'instant.<br>Ajoute la première activité à suivre.</div>
+  </div>
+</div>
+
+<button class="fab" id="addBtn">+ Ajouter une activité</button>
+
+<div class="sheet-bg" id="sheetBg">
+  <div class="sheet">
+    <h2 id="sheetTitle">Nouvelle activité</h2>
+    <div class="field">
+      <label>Nom</label>
+      <input id="fName" placeholder="ex. Muscu, Don de plasma, Lecture...">
+    </div>
+    <div class="freq-row">
+      <div class="field">
+        <label>Fois</label>
+        <input id="fCount" type="number" min="1" value="1">
+      </div>
+      <div class="field">
+        <label>Par</label>
+        <select id="fPeriod">
+          <option value="week">Semaine</option>
+          <option value="month">Mois</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label>Durée</label>
+      <div class="seg">
+        <button type="button" id="segPermanent" class="active">Tout le temps</button>
+        <button type="button" id="segLimited">Jusqu'à une date</button>
+      </div>
+    </div>
+    <div class="field" id="endDateField" style="display:none;">
+      <label>Fin</label>
+      <input id="fEndDate" type="date">
+    </div>
+    <div class="sheet-actions">
+      <button class="cancel" id="cancelBtn">Annuler</button>
+      <button class="save" id="saveBtn">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let activities = [];
+let editingId = null;
+
+function uid(){ return 'a_' + Date.now() + '_' + Math.floor(Math.random()*10000); }
+
+const hasCloudStorage = (typeof window.storage !== 'undefined' && window.storage !== null);
+
+async function loadData(){
+  try{
+    if(hasCloudStorage){
+      const res = await window.storage.get('activities', false);
+      activities = res ? JSON.parse(res.value) : [];
+    } else {
+      const raw = localStorage.getItem('cadence_activities');
+      activities = raw ? JSON.parse(raw) : [];
+    }
+  }catch(e){
+    activities = [];
+  }
+  render();
+}
+
+async function saveData(){
+  try{
+    if(hasCloudStorage){
+      await window.storage.set('activities', JSON.stringify(activities), false);
+    } else {
+      localStorage.setItem('cadence_activities', JSON.stringify(activities));
+    }
+  }catch(e){
+    console.error('Erreur de sauvegarde', e);
+  }
+}
+
+function periodBounds(periodType){
+  const now = new Date();
+  if(periodType === 'week'){
+    const day = (now.getDay() + 6) % 7; // Monday = 0
+    const start = new Date(now); start.setHours(0,0,0,0); start.setDate(now.getDate() - day);
+    const end = new Date(start); end.setDate(start.getDate() + 7);
+    return {start, end, length: 7};
+  } else {
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    const end = new Date(now.getFullYear(), now.getMonth()+1, 1);
+    const length = (end - start) / 86400000;
+    return {start, end, length};
+  }
+}
+
+function computeStatus(act){
+  const now = new Date();
+  if(act.endDate){
+    const end = new Date(act.endDate + 'T23:59:59');
+    if(now > end){
+      return {count:0, target: act.target, status:'ended', daysLeft:0};
+    }
+  }
+  const {start, end, length} = periodBounds(act.period);
+  const count = act.completions.filter(ts => { const d = new Date(ts); return d >= start && d < end; }).length;
+  const daysLeft = Math.max((end - now) / 86400000, 0);
+  const ratio = daysLeft / length;
+  let status = 'amber';
+  if(count >= act.target) status = 'green';
+  else if(ratio < 0.25) status = 'red';
+  return {count, target: act.target, status, daysLeft: Math.ceil(daysLeft)};
+}
+
+function colorFor(status){
+  if(status === 'green') return '#3FBFAE';
+  if(status === 'red') return '#E2574C';
+  if(status === 'ended') return '#8892A0';
+  return '#F2A93B';
+}
+
+function dialSVG(pct, color){
+  const r = 22, c = 2*Math.PI*r;
+  const offset = c - Math.min(pct,1)*c;
+  return `<svg width="56" height="56" viewBox="0 0 56 56">
+    <circle cx="28" cy="28" r="${r}" fill="none" stroke="#232E3A" stroke-width="5"/>
+    <circle cx="28" cy="28" r="${r}" fill="none" stroke="${color}" stroke-width="5"
+      stroke-dasharray="${c}" stroke-dashoffset="${offset}" stroke-linecap="round"/>
+  </svg>`;
+}
+
+function render(){
+  const list = document.getElementById('list');
+  const empty = document.getElementById('empty');
+  const banner = document.getElementById('banner');
+
+  if(activities.length === 0){
+    list.innerHTML = '';
+    empty.style.display = 'block';
+    banner.classList.remove('show');
+    return;
+  }
+  empty.style.display = 'none';
+
+  const overdue = [];
+  const sorted = [...activities].sort((a,b) => {
+    const ea = computeStatus(a).status === 'ended' ? 1 : 0;
+    const eb = computeStatus(b).status === 'ended' ? 1 : 0;
+    return ea - eb;
+  });
+
+  list.innerHTML = sorted.map(act => {
+    const st = computeStatus(act);
+    const color = colorFor(st.status);
+    const periodLabel = act.period === 'week' ? 'semaine' : 'mois';
+    const labels = {green:'à jour', red:'urgent', amber:'à faire', ended:'terminé'};
+    const tagClass = st.status === 'ended' ? 'grey' : st.status;
+    if(st.status === 'red') overdue.push(act.name);
+
+    let freqLine;
+    if(st.status === 'ended'){
+      const endStr = new Date(act.endDate + 'T00:00:00').toLocaleDateString('fr-FR');
+      freqLine = `${act.target}× / ${periodLabel} · terminé le ${endStr}`;
+    } else if(act.endDate){
+      const endStr = new Date(act.endDate + 'T00:00:00').toLocaleDateString('fr-FR');
+      freqLine = `${act.target}× / ${periodLabel} · jusqu'au ${endStr}`;
+    } else {
+      freqLine = `${act.target}× / ${periodLabel} · ${st.daysLeft}j restants`;
+    }
+
+    return `
+      <div class="card ${st.status === 'ended' ? 'ended' : ''}">
+        <div class="dial">${dialSVG(st.status === 'ended' ? 1 : st.count/st.target, color)}
+          <div class="count">${st.status === 'ended' ? '✓' : st.count + '/' + st.target}</div>
+        </div>
+        <div class="info">
+          <p class="name" onclick="openEdit('${act.id}')">${escapeHtml(act.name)}</p>
+          <div class="freq">${freqLine}</div>
+          <span class="tag ${tagClass}">${labels[st.status]}</span>
+        </div>
+        <div class="actions">
+          ${st.status === 'ended' ? '' : `<button class="btn-check" onclick="markDone('${act.id}')">Fait ✓</button>`}
+          <button class="btn-del" onclick="removeActivity('${act.id}')">Supprimer</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  if(overdue.length > 0){
+    banner.classList.add('show');
+    banner.innerHTML = `<b>En retard :</b> ${overdue.map(escapeHtml).join(', ')}. Marque-les si c'est fait, ou prends rendez-vous.`;
+  } else {
+    banner.classList.remove('show');
+  }
+}
+
+function escapeHtml(s){
+  return s.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
+async function markDone(id){
+  const act = activities.find(a => a.id === id);
+  if(!act) return;
+  act.completions.push(new Date().toISOString());
+  await saveData();
+  render();
+}
+
+async function removeActivity(id){
+  activities = activities.filter(a => a.id !== id);
+  await saveData();
+  render();
+}
+
+// Sheet handling
+const sheetBg = document.getElementById('sheetBg');
+const segPermanent = document.getElementById('segPermanent');
+const segLimited = document.getElementById('segLimited');
+const endDateField = document.getElementById('endDateField');
+const fEndDate = document.getElementById('fEndDate');
+
+function setDurationMode(limited){
+  segPermanent.classList.toggle('active', !limited);
+  segLimited.classList.toggle('active', limited);
+  endDateField.style.display = limited ? 'block' : 'none';
+}
+segPermanent.onclick = () => setDurationMode(false);
+segLimited.onclick = () => setDurationMode(true);
+
+document.getElementById('addBtn').onclick = () => {
+  editingId = null;
+  document.getElementById('sheetTitle').textContent = 'Nouvelle activité';
+  document.getElementById('fName').value = '';
+  document.getElementById('fCount').value = 1;
+  document.getElementById('fPeriod').value = 'week';
+  fEndDate.value = '';
+  setDurationMode(false);
+  sheetBg.classList.add('show');
+};
+
+function openEdit(id){
+  const act = activities.find(a => a.id === id);
+  if(!act) return;
+  editingId = id;
+  document.getElementById('sheetTitle').textContent = 'Modifier l\'activité';
+  document.getElementById('fName').value = act.name;
+  document.getElementById('fCount').value = act.target;
+  document.getElementById('fPeriod').value = act.period;
+  if(act.endDate){
+    setDurationMode(true);
+    fEndDate.value = act.endDate;
+  } else {
+    setDurationMode(false);
+    fEndDate.value = '';
+  }
+  sheetBg.classList.add('show');
+}
+
+document.getElementById('cancelBtn').onclick = () => sheetBg.classList.remove('show');
+sheetBg.onclick = (e) => { if(e.target === sheetBg) sheetBg.classList.remove('show'); };
+
+document.getElementById('saveBtn').onclick = async () => {
+  const name = document.getElementById('fName').value.trim();
+  const count = parseInt(document.getElementById('fCount').value, 10) || 1;
+  const period = document.getElementById('fPeriod').value;
+  const limited = segLimited.classList.contains('active');
+  const endDate = limited ? fEndDate.value : null;
+  if(!name) return;
+  if(limited && !endDate) return;
+
+  if(editingId){
+    const act = activities.find(a => a.id === editingId);
+    if(act){
+      act.name = name; act.target = count; act.period = period; act.endDate = endDate;
+    }
+  } else {
+    activities.push({ id: uid(), name, target: count, period, endDate, completions: [] });
+  }
+  await saveData();
+  sheetBg.classList.remove('show');
+  render();
+};
+
+// Notifications
+const notifBtn = document.getElementById('notifBtn');
+const notifLabel = document.getElementById('notifLabel');
+
+function refreshNotifUI(){
+  if(!('Notification' in window)){
+    notifLabel.textContent = 'Notifications non supportées par ce navigateur';
+    notifBtn.style.display = 'none';
+    return;
+  }
+  if(Notification.permission === 'granted'){
+    notifLabel.textContent = 'Notifications activées';
+    notifLabel.classList.add('on');
+    notifBtn.textContent = 'Tester';
+  } else if(Notification.permission === 'denied'){
+    notifLabel.textContent = 'Bloquées — à débloquer dans les réglages du site';
+    notifLabel.classList.remove('on');
+    notifBtn.textContent = 'Comment faire ?';
+  } else {
+    notifLabel.textContent = 'Notifications désactivées';
+    notifLabel.classList.remove('on');
+    notifBtn.textContent = 'Activer';
+  }
+}
+
+notifBtn.onclick = async () => {
+  if(!('Notification' in window)){
+    alert("Ce navigateur ne supporte pas les notifications web. Essaie avec Chrome à jour.");
+    return;
+  }
+
+  if(Notification.permission === 'denied'){
+    alert("Les notifications sont bloquées pour cette page.\n\nSur Chrome Android : appuie sur les ⋮ en haut à droite → Infos sur le site (ou l'icône ⓘ / cadenas à côté de l'adresse) → Autorisations → Notifications → Autoriser.\n\nPuis reviens ici et réessaie.");
+    return;
+  }
+
+  if(Notification.permission === 'granted'){
+    try{
+      new Notification('Cadence', { body: 'Ceci est un test — si tu vois ça, les notifications marchent.' });
+    }catch(e){
+      alert("La permission est accordée mais l'envoi a échoué : " + e.message);
+    }
+    return;
+  }
+
+  try{
+    const perm = await Notification.requestPermission();
+    refreshNotifUI();
+    if(perm === 'granted'){
+      new Notification('Cadence', { body: 'Notifications activées ✓' });
+      checkAndNotify();
+    } else if(perm === 'denied'){
+      alert("Tu as refusé la permission. Tu peux la réactiver dans les réglages du site (icône ⓘ à côté de l'adresse → Autorisations → Notifications).");
+    }
+  }catch(e){
+    alert("Erreur lors de la demande de permission : " + e.message + "\n\nSi tu as ouvert ce fichier directement (adresse commençant par file://), certains navigateurs Android bloquent les notifications sur ce type de page. Essaie de l'ouvrir depuis un lien https:// à la place.");
+  }
+};
+
+function checkAndNotify(){
+  if(!('Notification' in window) || Notification.permission !== 'granted') return;
+  const overdue = activities.filter(a => computeStatus(a).status === 'red');
+  if(overdue.length > 0){
+    new Notification('Cadence — à ne pas oublier', {
+      body: overdue.map(a => a.name).join(', ') + ' — il est temps de t\'en occuper.',
+    });
+  }
+}
+
+// Check on load, and every 30 min while the app stays open
+loadData().then(refreshNotifUI);
+setInterval(checkAndNotify, 30*60*1000);
+</script>
+</body>
+</html>
