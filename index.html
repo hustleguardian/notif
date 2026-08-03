@@ -25,7 +25,7 @@
     color:var(--text);
     font-family:'Inter', sans-serif;
     min-height:100vh;
-    padding-bottom:100px;
+    padding-bottom:40px;
   }
   .wrap{max-width:520px; margin:0 auto; padding:24px 18px 0;}
 
@@ -43,10 +43,18 @@
     font-weight:600;
     font-size:34px;
     line-height:1.05;
-    margin:0 0 4px;
+    margin:0;
     letter-spacing:-0.01em;
   }
-  .sub{color:var(--muted); font-size:14px; margin:0;}
+  .sub{color:var(--muted); font-size:14px; margin:4px 0 0;}
+
+  .rituels-header{display:flex; align-items:center; justify-content:space-between; gap:12px;}
+  .btn-add-activity{
+    background:var(--teal); color:#08201C; border:none; border-radius:10px;
+    padding:10px 16px; font-family:'Inter', sans-serif; font-weight:600; font-size:13px;
+    cursor:pointer; white-space:nowrap; flex-shrink:0;
+  }
+  .btn-add-activity:active{transform:scale(0.96);}
 
   .banner{
     margin-top:16px;
@@ -159,24 +167,14 @@
   }
   .empty .glyph{font-family:'Fraunces', serif; font-size:40px; color:var(--card2); margin-bottom:8px;}
 
-  .fab{
-    position:fixed; left:50%; bottom:24px; transform:translateX(-50%);
-    width:calc(100% - 36px); max-width:484px;
-    background:var(--teal); color:#08201C;
-    border:none; border-radius:16px; padding:16px;
-    font-family:'Inter', sans-serif; font-weight:600; font-size:15px;
-    cursor:pointer; box-shadow:0 8px 24px rgba(63,191,174,0.25);
-  }
-
   .toast{
-    position:fixed; left:50%; bottom:92px; transform:translateX(-50%) translateY(20px);
+    position:fixed; left:50%; bottom:24px; transform:translateX(-50%) translateY(20px);
     background:var(--teal); color:#08201C; padding:10px 18px; border-radius:12px;
     font-family:'Inter', sans-serif; font-weight:600; font-size:13px;
     opacity:0; pointer-events:none; transition:opacity .25s ease, transform .25s ease;
     z-index:30; box-shadow:0 8px 24px rgba(63,191,174,0.25); white-space:nowrap;
   }
   .toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
-  .fab:active{transform:translateX(-50%) scale(0.98);}
 
   .sheet-bg{
     position:fixed; inset:0; background:rgba(0,0,0,0.5); display:none;
@@ -203,7 +201,7 @@
   .cancel{background:var(--card2); color:var(--text);}
   .save{background:var(--teal); color:#08201C;}
 
-  .test-panel{
+  .debug-panel{
     margin-top:24px;
     background:var(--card);
     border:1px solid var(--line);
@@ -211,7 +209,7 @@
     padding:12px 16px;
     color:var(--muted);
   }
-  .test-panel summary{
+  .debug-panel summary{
     cursor:pointer;
     font-family:'Space Mono', monospace;
     font-size:11px;
@@ -219,12 +217,12 @@
     text-transform:uppercase;
     color:var(--text);
   }
-  .test-panel .field{margin-top:12px; margin-bottom:0;}
-  .test-panel-actions{
+  .debug-panel .field{margin-top:12px; margin-bottom:0;}
+  .debug-panel-actions{
     display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:10px;
   }
-  .test-panel-actions span{font-size:12px;}
-  .test-panel-actions button{
+  .debug-panel-actions span{font-size:12px;}
+  .debug-panel-actions button{
     background:none; border:1px solid var(--line); color:var(--text);
     padding:6px 10px; border-radius:8px; font-size:12px; font-family:inherit; cursor:pointer;
   }
@@ -254,21 +252,12 @@
 <div class="wrap">
   <header>
     <div class="eyebrow">Cadence</div>
-    <h1>Tes rituels</h1>
+    <div class="rituels-header">
+      <h1>Tes rituels</h1>
+      <button class="btn-add-activity" id="addBtn">+ Ajouter</button>
+    </div>
     <p class="sub">Ce que tu veux faire, et à quel rythme.</p>
     <div class="banner" id="banner"></div>
-    <div class="notif-row">
-      <span id="notifLabel">Notifications désactivées</span>
-      <button id="notifBtn">Activer</button>
-    </div>
-    <div class="notif-row">
-      <span>Sauvegarde de tes données</span>
-      <span>
-        <button id="exportBtn">Exporter</button>
-        <button id="importBtn">Importer</button>
-      </span>
-      <input type="file" id="importFile" accept="application/json" style="display:none;">
-    </div>
   </header>
 
   <div class="list" id="list"></div>
@@ -286,20 +275,30 @@
     <div class="todo-empty" id="todoEmpty" style="display:none;">Aucune tâche pour l'instant.</div>
   </div>
 
-  <details class="test-panel" id="testPanel">
-    <summary>Mode test</summary>
+  <details class="debug-panel" id="debugPanel">
+    <summary>Debug</summary>
+    <div class="notif-row">
+      <span id="notifLabel">Notifications désactivées</span>
+      <button id="notifBtn">Activer</button>
+    </div>
+    <div class="notif-row">
+      <span>Sauvegarde de tes données</span>
+      <span>
+        <button id="exportBtn">Exporter</button>
+        <button id="importBtn">Importer</button>
+      </span>
+      <input type="file" id="importFile" accept="application/json" style="display:none;">
+    </div>
     <div class="field">
       <label>Date simulée</label>
       <input id="fakeNowInput" type="datetime-local">
     </div>
-    <div class="test-panel-actions">
+    <div class="debug-panel-actions">
       <span id="fakeNowStatus">Date réelle</span>
       <button type="button" id="resetFakeNowBtn">Réinitialiser</button>
     </div>
   </details>
 </div>
-
-<button class="fab" id="addBtn">+ Ajouter une activité</button>
 
 <div class="sheet-bg" id="sheetBg">
   <div class="sheet">
@@ -457,17 +456,17 @@ function toDatetimeLocalValue(date){
 function refreshFakeNowUI(){
   const input = document.getElementById('fakeNowInput');
   const status = document.getElementById('fakeNowStatus');
-  const panel = document.getElementById('testPanel');
+  const panel = document.getElementById('debugPanel');
   const summary = panel.querySelector('summary');
   if(fakeNow){
     input.value = toDatetimeLocalValue(new Date(fakeNow));
     status.textContent = 'Date simulée : ' + new Date(fakeNow).toLocaleString('fr-FR');
     panel.open = true;
-    summary.textContent = 'Mode test — date simulée active';
+    summary.textContent = 'Debug — date simulée active';
   } else {
     input.value = '';
     status.textContent = 'Date réelle';
-    summary.textContent = 'Mode test';
+    summary.textContent = 'Debug';
   }
 }
 
