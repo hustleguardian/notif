@@ -2,7 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import CadenceLogic from './logic.js';
 
-const { getNow, nextDueDate, formatFrequency, computeCycleStatus, migrateActivity, dateStrDaysAgo, completionIsoForDateStr } = CadenceLogic;
+const {
+  getNow, nextDueDate, formatFrequency, computeCycleStatus, migrateActivity,
+  dateStrDaysAgo, completionIsoForDateStr, evalActivity, buildDigest,
+  formatDigestNotification, nextCheckpointToFire,
+} = CadenceLogic;
 
 test('getNow returns real date when no fake date given', () => {
   const before = Date.now();
@@ -157,4 +161,150 @@ test('completionIsoForDateStr composed with dateStrDaysAgo backdates to the righ
   assert.equal(d.getFullYear(), 2026);
   assert.equal(d.getMonth(), 2);
   assert.equal(d.getDate(), 14);
+});
+
+// --- evalActivity ---
+
+test('evalActivity: ended activity (endDate passed) returns status ended', () => {
+  const act = {
+    intervalCount: 1, intervalUnit: 'day', createdAt: '2026-01-01T00:00:00.000Z',
+    completions: [], endDate: '2026-01-05',
+  };
+  const now = new Date('2026-01-10T00:00:00.000Z');
+  const result = evalActivity(act, now);
+  assert.equal(result.status, 'ended');
+});
+
+test('evalActivity: no completions anchors on createdAt', () => {
+  const act = {
+    intervalCount: 10, intervalUnit: 'day', createdAt: '2026-01-01T00:00:00.000Z',
+    completions: [], endDate: null,
+  };
+  const now = new Date('2026-01-11T00:00:00.000Z'); // exactly at due instant
+  const result = evalActivity(act, now);
+  assert.equal(result.status, 'red');
+});
+
+test('evalActivity: anchors on the most recent completion, not createdAt', () => {
+  const act = {
+    intervalCount: 10, intervalUnit: 'day', createdAt: '2020-01-01T00:00:00.000Z',
+    completions: ['2026-01-01T00:00:00.000Z', '2026-01-05T00:00:00.000Z'], endDate: null,
+  };
+  const now = new Date('2026-01-06T00:00:00.000Z'); // 1 day after the latest completion
+  const result = evalActivity(act, now);
+  assert.equal(result.status, 'green');
+});
+
+// --- buildDigest ---
+
+test('buildDigest: groups amber/red activities by unit, ignores green ones', () => {
+  const now = new Date('2026-01-11T00:00:00.000Z');
+  const activities = [
+    { name: 'Overdue daily', intervalCount: 10, intervalUnit: 'day', createdAt: '2026-01-01T00:00:00.000Z', completions: [], endDate: null },
+    { name: 'Fresh weekly', intervalCount: 1, intervalUnit: 'week', createdAt: now.toISOString(), completions: [], endDate: null },
+  ];
+  const digest = buildDigest(activities, now);
+  assert.deepEqual(digest.today, ['Overdue daily']);
+  assert.deepEqual(digest.week, []);
+});
+
+test('buildDigest: excludes ended activities entirely', () => {
+  const now = new Date('2026-01-11T00:00:00.000Z');
+  const activities = [
+    { name: 'Old one', intervalCount: 1, intervalUnit: 'day', createdAt: '2020-01-01T00:00:00.000Z', completions: [], endDate: '2020-02-01' },
+  ];
+  const digest = buildDigest(activities, now);
+  assert.deepEqual(digest.today, []);
+  assert.equal(digest.hasDayActivities, false);
+});
+
+test('buildDigest: hasDayActivities is true even when all day activities are green', () => {
+  const now = new Date('2026-01-11T00:00:00.000Z');
+  const activities = [
+    { name: 'Just done', intervalCount: 5, intervalUnit: 'day', createdAt: now.toISOString(), completions: [], endDate: null },
+  ];
+  const digest = buildDigest(activities, now);
+  assert.deepEqual(digest.today, []);
+  assert.equal(digest.hasDayActivities, true);
+});
+
+test('buildDigest: hasDayActivities is false when there are no day-unit activities', () => {
+  const now = new Date('2026-01-11T00:00:00.000Z');
+  const activities = [
+    { name: 'Monthly thing', intervalCount: 1, intervalUnit: 'month', createdAt: now.toISOString(), completions: [], endDate: null },
+  ];
+  const digest = buildDigest(activities, now);
+  assert.equal(digest.hasDayActivities, false);
+});
+
+// --- formatDigestNotification ---
+
+test('formatDigestNotification: lists outstanding items per section', () => {
+  const digest = { today: ['Muscu'], week: ['Étirement'], month: ['Don de plasma'], hasDayActivities: true };
+  const result = formatDigestNotification(digest);
+  assert.equal(result.body, "Aujourd'hui : Muscu\nCette semaine : Étirement\nCe mois : Don de plasma");
+});
+
+test('formatDigestNotification: shows the "tout fait" tick when today is empty but day activities exist', () => {
+  const digest = { today: [], week: ['Étirement'], month: ['Don de plasma'], hasDayActivities: true };
+  const result = formatDigestNotification(digest);
+  assert.equal(result.body, "Aujourd'hui : tout fait ✓\nCette semaine : Étirement\nCe mois : Don de plasma");
+});
+
+test('formatDigestNotification: omits the "Aujourd\'hui" line entirely when there are no day-unit activities', () => {
+  const digest = { today: [], week: ['Étirement'], month: [], hasDayActivities: false };
+  const result = formatDigestNotification(digest);
+  assert.equal(result.body, 'Cette semaine : Étirement');
+});
+
+test('formatDigestNotification: empty body when there is nothing to report', () => {
+  const digest = { today: [], week: [], month: [], hasDayActivities: false };
+  const result = formatDigestNotification(digest);
+  assert.equal(result.body, '');
+});
+
+// --- nextCheckpointToFire ---
+
+test('nextCheckpointToFire: returns null before the first checkpoint of the day', () => {
+  const now = new Date(2026, 2, 15, 8, 0);
+  const { checkpointId } = nextCheckpointToFire(now, null);
+  assert.equal(checkpointId, null);
+});
+
+test('nextCheckpointToFire: fires "morning" once 9h has passed with no prior state', () => {
+  const now = new Date(2026, 2, 15, 9, 30);
+  const { checkpointId, newState } = nextCheckpointToFire(now, null);
+  assert.equal(checkpointId, 'morning');
+  assert.equal(newState.sent.morning, true);
+});
+
+test('nextCheckpointToFire: does not re-fire a checkpoint already sent today', () => {
+  const now = new Date(2026, 2, 15, 10, 0);
+  const state = { date: '2026-03-15', sent: { morning: true } };
+  const { checkpointId } = nextCheckpointToFire(now, state);
+  assert.equal(checkpointId, null);
+});
+
+test('nextCheckpointToFire: catch-up fires only the most recent missed checkpoint', () => {
+  const now = new Date(2026, 2, 15, 18, 0); // after all three checkpoints
+  const { checkpointId, newState } = nextCheckpointToFire(now, null);
+  assert.equal(checkpointId, 'evening');
+  // earlier missed checkpoints are marked sent too, so they don't fire later
+  assert.equal(newState.sent.morning, true);
+  assert.equal(newState.sent.midday, true);
+  assert.equal(newState.sent.evening, true);
+});
+
+test('nextCheckpointToFire: fires "midday" when morning already sent and it is now past noon', () => {
+  const now = new Date(2026, 2, 15, 13, 0);
+  const state = { date: '2026-03-15', sent: { morning: true } };
+  const { checkpointId } = nextCheckpointToFire(now, state);
+  assert.equal(checkpointId, 'midday');
+});
+
+test('nextCheckpointToFire: stale state from a previous day resets and treats today as fresh', () => {
+  const now = new Date(2026, 2, 15, 9, 30);
+  const state = { date: '2026-03-14', sent: { morning: true, midday: true, evening: true } };
+  const { checkpointId } = nextCheckpointToFire(now, state);
+  assert.equal(checkpointId, 'morning');
 });

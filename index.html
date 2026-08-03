@@ -370,6 +370,32 @@ async function saveFakeNow(iso){
   }
 }
 
+async function loadCheckpointState(){
+  try{
+    if(hasCloudStorage){
+      const res = await window.storage.get('notifCheckpoints', false);
+      return res ? JSON.parse(res.value) : null;
+    } else {
+      const raw = localStorage.getItem('cadence_notif_checkpoints');
+      return raw ? JSON.parse(raw) : null;
+    }
+  }catch(e){
+    return null;
+  }
+}
+
+async function saveCheckpointState(state){
+  try{
+    if(hasCloudStorage){
+      await window.storage.set('notifCheckpoints', JSON.stringify(state), false);
+    } else {
+      localStorage.setItem('cadence_notif_checkpoints', JSON.stringify(state));
+    }
+  }catch(e){
+    console.error('Erreur de sauvegarde', e);
+  }
+}
+
 function toDatetimeLocalValue(date){
   const pad = n => String(n).padStart(2, '0');
   return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
@@ -428,20 +454,7 @@ async function saveData(){
   }
 }
 
-function evalActivity(act, now){
-  if(act.endDate){
-    const end = new Date(act.endDate + 'T23:59:59');
-    if(now > end){
-      return { status: 'ended', daysLeft: 0, daysLate: 0, pct: 1 };
-    }
-  }
-  const anchorIso = act.completions.length
-    ? act.completions[act.completions.length - 1]
-    : act.createdAt;
-  return CadenceLogic.computeCycleStatus({
-    anchorIso, intervalCount: act.intervalCount, intervalUnit: act.intervalUnit, now,
-  });
-}
+const evalActivity = CadenceLogic.evalActivity;
 
 function colorFor(status){
   if(status === 'green') return '#3FBFAE';
@@ -695,7 +708,13 @@ async function notify(title, options){
   }
   if('serviceWorker' in navigator){
     try{
-      const reg = await navigator.serviceWorker.ready;
+      // navigator.serviceWorker.ready never settles when no service worker can
+      // ever activate for this page (e.g. file://), so race it against a
+      // short timeout instead of awaiting it unconditionally.
+      const reg = await Promise.race([
+        navigator.serviceWorker.ready,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('service worker not ready')), 1000)),
+      ]);
       await reg.showNotification(title, options);
       return;
     }catch(e){
@@ -739,7 +758,11 @@ notifBtn.onclick = async () => {
 
   if(Notification.permission === 'granted'){
     try{
-      await notify('Cadence', { body: 'Ceci est un test — si tu vois ça, les notifications marchent.' });
+      const digest = CadenceLogic.buildDigest(activities, appNow());
+      const { title, body } = CadenceLogic.formatDigestNotification(digest);
+      await notify(title, {
+        body: body || 'Ceci est un test — si tu vois ça, les notifications marchent. Rien à signaler pour le moment.',
+      });
     }catch(e){
       alert("La permission est accordée mais l'envoi a échoué : " + e.message);
     }
@@ -760,15 +783,21 @@ notifBtn.onclick = async () => {
   }
 };
 
-function checkAndNotify(){
+// Fires the most recent unfired daily checkpoint (9h/12h/17h) at most once per
+// day each, with catch-up if the app wasn't open at the exact time — see
+// CadenceLogic.nextCheckpointToFire. Safe to call often; it's a no-op outside
+// a checkpoint window or once today's applicable checkpoint already fired.
+async function checkAndNotify(){
   if(!('Notification' in window) || Notification.permission !== 'granted') return;
   const now = appNow();
-  const overdue = activities.filter(a => evalActivity(a, now).status === 'red');
-  if(overdue.length > 0){
-    notify('Cadence — à ne pas oublier', {
-      body: overdue.map(a => a.name).join(', ') + ' — il est temps de t\'en occuper.',
-    }).catch(() => {});
-  }
+  const state = await loadCheckpointState();
+  const { checkpointId, newState } = CadenceLogic.nextCheckpointToFire(now, state);
+  await saveCheckpointState(newState);
+  if(!checkpointId) return;
+  const digest = CadenceLogic.buildDigest(activities, now);
+  const { title, body } = CadenceLogic.formatDigestNotification(digest);
+  if(!body) return;
+  notify(title, { body }).catch(() => {});
 }
 
 document.getElementById('fakeNowInput').onchange = async (e) => {
@@ -823,9 +852,11 @@ importFileInput.onchange = async (e) => {
   }
 };
 
-// Check on load, and every 30 min while the app stays open
-loadData().then(refreshNotifUI);
-setInterval(checkAndNotify, 30*60*1000);
+// Check on load (catches up any checkpoint missed while the app was closed),
+// then every 5 min while the app stays open so an open checkpoint fires close
+// to on-time instead of only at the next visit.
+loadData().then(() => { refreshNotifUI(); checkAndNotify(); });
+setInterval(checkAndNotify, 5*60*1000);
 </script>
 </body>
 </html>
