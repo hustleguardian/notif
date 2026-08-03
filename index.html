@@ -535,6 +535,7 @@ function render(){
             <button class="btn-check" onclick="markDone('${act.id}')">Fait ✓</button>
             <button class="btn-date" onclick="openDateSheet('${act.id}')" title="Choisir une date">📅</button>
           </div>`}
+          ${act.completions.length > 0 ? `<button class="btn-del" onclick="removeLastCompletion('${act.id}')">Annuler</button>` : ''}
           <button class="btn-del" onclick="removeActivity('${act.id}')">Supprimer</button>
         </div>
       </div>
@@ -569,6 +570,15 @@ async function markDone(id){
   await saveData();
   render();
   showToast(`${act.name} — marqué comme fait ✓`);
+}
+
+async function removeLastCompletion(id){
+  const act = activities.find(a => a.id === id);
+  if(!act || act.completions.length === 0) return;
+  act.completions.pop();
+  await saveData();
+  render();
+  showToast(`${act.name} — dernier "fait" annulé`);
 }
 
 let dateSheetActivityId = null;
