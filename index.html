@@ -183,7 +183,7 @@
   .sheet-bg.show{display:flex;}
   .sheet{
     background:var(--card); width:100%; border-radius:22px 22px 0 0;
-    padding:22px 20px 28px; max-width:520px; margin:0 auto;
+    padding:22px 20px 28px;
   }
   .sheet h2{font-family:'Fraunces', serif; font-size:22px; margin:0 0 16px; font-weight:600;}
   .field{margin-bottom:14px;}
@@ -230,10 +230,6 @@
   .todos-section{margin-top:28px;}
   .todos-header{display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;}
   .todos-header h2{font-family:'Fraunces', serif; font-size:19px; margin:0; font-weight:600;}
-  .todos-header button{
-    background:none; border:1px solid var(--line); color:var(--teal);
-    padding:6px 12px; border-radius:8px; font-size:12px; font-family:inherit; font-weight:600; cursor:pointer;
-  }
   .todo-list{display:flex; flex-direction:column; gap:8px;}
   .todo-row{
     display:flex; align-items:center; gap:10px;
@@ -269,7 +265,7 @@
   <div class="todos-section">
     <div class="todos-header">
       <h2>Tes tâches</h2>
-      <button type="button" id="addTodoBtn">+ Ajouter</button>
+      <button type="button" class="btn-add-activity" id="addTodoBtn">+ Ajouter</button>
     </div>
     <div class="todo-list" id="todoList"></div>
     <div class="todo-empty" id="todoEmpty" style="display:none;">Aucune tâche pour l'instant.</div>
