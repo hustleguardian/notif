@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
 <title>Cadence</title>
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Space+Mono:wght@400;700&family=Inter:wght@400;500;600&display=swap');
 
@@ -857,8 +859,9 @@ if('serviceWorker' in navigator){
 // (desktop and Android alike) and falls back to the constructor otherwise
 // (e.g. file:// pages, where service workers can't register at all).
 async function notify(title, options){
+  const opts = { icon: 'icon-192.png', badge: 'icon-192.png', ...options };
   if(swRegistration){
-    await swRegistration.showNotification(title, options);
+    await swRegistration.showNotification(title, opts);
     return;
   }
   if('serviceWorker' in navigator){
@@ -870,13 +873,13 @@ async function notify(title, options){
         navigator.serviceWorker.ready,
         new Promise((_, reject) => setTimeout(() => reject(new Error('service worker not ready')), 1000)),
       ]);
-      await reg.showNotification(title, options);
+      await reg.showNotification(title, opts);
       return;
     }catch(e){
       // fall through to the constructor below
     }
   }
-  new Notification(title, options);
+  new Notification(title, opts);
 }
 
 function refreshNotifUI(){
