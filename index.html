@@ -319,12 +319,17 @@ function toDatetimeLocalValue(date){
 function refreshFakeNowUI(){
   const input = document.getElementById('fakeNowInput');
   const status = document.getElementById('fakeNowStatus');
+  const panel = document.getElementById('testPanel');
+  const summary = panel.querySelector('summary');
   if(fakeNow){
     input.value = toDatetimeLocalValue(new Date(fakeNow));
     status.textContent = 'Date simulée : ' + new Date(fakeNow).toLocaleString('fr-FR');
+    panel.open = true;
+    summary.textContent = 'Mode test — date simulée active';
   } else {
     input.value = '';
     status.textContent = 'Date réelle';
+    summary.textContent = 'Mode test';
   }
 }
 
@@ -535,7 +540,7 @@ sheetBg.onclick = (e) => { if(e.target === sheetBg) sheetBg.classList.remove('sh
 
 document.getElementById('saveBtn').onclick = async () => {
   const name = document.getElementById('fName').value.trim();
-  const intervalCount = parseInt(document.getElementById('fIntervalCount').value, 10) || 1;
+  const intervalCount = Math.min(999, Math.max(1, parseInt(document.getElementById('fIntervalCount').value, 10) || 1));
   const intervalUnit = document.getElementById('fIntervalUnit').value;
   const limited = segLimited.classList.contains('active');
   const endDate = limited ? fEndDate.value : null;
