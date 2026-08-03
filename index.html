@@ -208,13 +208,14 @@
     </div>
     <div class="freq-row">
       <div class="field">
-        <label>Fois</label>
-        <input id="fCount" type="number" min="1" value="1">
+        <label>Tous les</label>
+        <input id="fIntervalCount" type="number" min="1" value="1">
       </div>
       <div class="field">
-        <label>Par</label>
-        <select id="fPeriod">
-          <option value="week">Semaine</option>
+        <label>Unité</label>
+        <select id="fIntervalUnit">
+          <option value="day">Jour(s)</option>
+          <option value="week">Semaine(s)</option>
           <option value="month">Mois</option>
         </select>
       </div>
@@ -237,6 +238,7 @@
   </div>
 </div>
 
+<script src="logic.js"></script>
 <script>
 let activities = [];
 let editingId = null;
@@ -272,37 +274,19 @@ async function saveData(){
   }
 }
 
-function periodBounds(periodType){
-  const now = new Date();
-  if(periodType === 'week'){
-    const day = (now.getDay() + 6) % 7; // Monday = 0
-    const start = new Date(now); start.setHours(0,0,0,0); start.setDate(now.getDate() - day);
-    const end = new Date(start); end.setDate(start.getDate() + 7);
-    return {start, end, length: 7};
-  } else {
-    const start = new Date(now.getFullYear(), now.getMonth(), 1);
-    const end = new Date(now.getFullYear(), now.getMonth()+1, 1);
-    const length = (end - start) / 86400000;
-    return {start, end, length};
-  }
-}
-
-function computeStatus(act){
-  const now = new Date();
+function evalActivity(act, now){
   if(act.endDate){
     const end = new Date(act.endDate + 'T23:59:59');
     if(now > end){
-      return {count:0, target: act.target, status:'ended', daysLeft:0};
+      return { status: 'ended', daysLeft: 0, daysLate: 0, pct: 1 };
     }
   }
-  const {start, end, length} = periodBounds(act.period);
-  const count = act.completions.filter(ts => { const d = new Date(ts); return d >= start && d < end; }).length;
-  const daysLeft = Math.max((end - now) / 86400000, 0);
-  const ratio = daysLeft / length;
-  let status = 'amber';
-  if(count >= act.target) status = 'green';
-  else if(ratio < 0.25) status = 'red';
-  return {count, target: act.target, status, daysLeft: Math.ceil(daysLeft)};
+  const anchorIso = act.completions.length
+    ? act.completions[act.completions.length - 1]
+    : act.createdAt;
+  return CadenceLogic.computeCycleStatus({
+    anchorIso, intervalCount: act.intervalCount, intervalUnit: act.intervalUnit, now,
+  });
 }
 
 function colorFor(status){
@@ -335,17 +319,18 @@ function render(){
   }
   empty.style.display = 'none';
 
+  const now = new Date();
   const overdue = [];
   const sorted = [...activities].sort((a,b) => {
-    const ea = computeStatus(a).status === 'ended' ? 1 : 0;
-    const eb = computeStatus(b).status === 'ended' ? 1 : 0;
+    const ea = evalActivity(a, now).status === 'ended' ? 1 : 0;
+    const eb = evalActivity(b, now).status === 'ended' ? 1 : 0;
     return ea - eb;
   });
 
   list.innerHTML = sorted.map(act => {
-    const st = computeStatus(act);
+    const st = evalActivity(act, now);
     const color = colorFor(st.status);
-    const periodLabel = act.period === 'week' ? 'semaine' : 'mois';
+    const freqLabel = CadenceLogic.formatFrequency(act.intervalCount, act.intervalUnit);
     const labels = {green:'à jour', red:'urgent', amber:'à faire', ended:'terminé'};
     const tagClass = st.status === 'ended' ? 'grey' : st.status;
     if(st.status === 'red') overdue.push(act.name);
@@ -353,18 +338,24 @@ function render(){
     let freqLine;
     if(st.status === 'ended'){
       const endStr = new Date(act.endDate + 'T00:00:00').toLocaleDateString('fr-FR');
-      freqLine = `${act.target}× / ${periodLabel} · terminé le ${endStr}`;
+      freqLine = `${freqLabel} · terminé le ${endStr}`;
     } else if(act.endDate){
       const endStr = new Date(act.endDate + 'T00:00:00').toLocaleDateString('fr-FR');
-      freqLine = `${act.target}× / ${periodLabel} · jusqu'au ${endStr}`;
+      freqLine = `${freqLabel} · jusqu'au ${endStr}`;
+    } else if(st.status === 'red'){
+      freqLine = st.daysLate === 0 ? `${freqLabel} · en retard aujourd'hui` : `${freqLabel} · en retard de ${st.daysLate}j`;
     } else {
-      freqLine = `${act.target}× / ${periodLabel} · ${st.daysLeft}j restants`;
+      freqLine = st.daysLeft === 0 ? `${freqLabel} · prochain aujourd'hui` : `${freqLabel} · prochain dans ${st.daysLeft}j`;
     }
+
+    const dialCenter = st.status === 'ended' ? '✓'
+      : st.status === 'red' ? (st.daysLate === 0 ? 'Auj.' : st.daysLate + 'j')
+      : (st.daysLeft === 0 ? 'Auj.' : st.daysLeft + 'j');
 
     return `
       <div class="card ${st.status === 'ended' ? 'ended' : ''}">
-        <div class="dial">${dialSVG(st.status === 'ended' ? 1 : st.count/st.target, color)}
-          <div class="count">${st.status === 'ended' ? '✓' : st.count + '/' + st.target}</div>
+        <div class="dial">${dialSVG(st.status === 'ended' ? 1 : st.pct, color)}
+          <div class="count">${dialCenter}</div>
         </div>
         <div class="info">
           <p class="name" onclick="openEdit('${act.id}')">${escapeHtml(act.name)}</p>
@@ -424,8 +415,8 @@ document.getElementById('addBtn').onclick = () => {
   editingId = null;
   document.getElementById('sheetTitle').textContent = 'Nouvelle activité';
   document.getElementById('fName').value = '';
-  document.getElementById('fCount').value = 1;
-  document.getElementById('fPeriod').value = 'week';
+  document.getElementById('fIntervalCount').value = 1;
+  document.getElementById('fIntervalUnit').value = 'week';
   fEndDate.value = '';
   setDurationMode(false);
   sheetBg.classList.add('show');
@@ -437,8 +428,8 @@ function openEdit(id){
   editingId = id;
   document.getElementById('sheetTitle').textContent = 'Modifier l\'activité';
   document.getElementById('fName').value = act.name;
-  document.getElementById('fCount').value = act.target;
-  document.getElementById('fPeriod').value = act.period;
+  document.getElementById('fIntervalCount').value = act.intervalCount;
+  document.getElementById('fIntervalUnit').value = act.intervalUnit;
   if(act.endDate){
     setDurationMode(true);
     fEndDate.value = act.endDate;
@@ -454,8 +445,8 @@ sheetBg.onclick = (e) => { if(e.target === sheetBg) sheetBg.classList.remove('sh
 
 document.getElementById('saveBtn').onclick = async () => {
   const name = document.getElementById('fName').value.trim();
-  const count = parseInt(document.getElementById('fCount').value, 10) || 1;
-  const period = document.getElementById('fPeriod').value;
+  const intervalCount = parseInt(document.getElementById('fIntervalCount').value, 10) || 1;
+  const intervalUnit = document.getElementById('fIntervalUnit').value;
   const limited = segLimited.classList.contains('active');
   const endDate = limited ? fEndDate.value : null;
   if(!name) return;
@@ -464,10 +455,14 @@ document.getElementById('saveBtn').onclick = async () => {
   if(editingId){
     const act = activities.find(a => a.id === editingId);
     if(act){
-      act.name = name; act.target = count; act.period = period; act.endDate = endDate;
+      act.name = name; act.intervalCount = intervalCount; act.intervalUnit = intervalUnit; act.endDate = endDate;
     }
   } else {
-    activities.push({ id: uid(), name, target: count, period, endDate, completions: [] });
+    activities.push({
+      id: uid(), name, intervalCount, intervalUnit, endDate,
+      createdAt: new Date().toISOString(),
+      completions: [],
+    });
   }
   await saveData();
   sheetBg.classList.remove('show');
@@ -535,7 +530,8 @@ notifBtn.onclick = async () => {
 
 function checkAndNotify(){
   if(!('Notification' in window) || Notification.permission !== 'granted') return;
-  const overdue = activities.filter(a => computeStatus(a).status === 'red');
+  const now = new Date();
+  const overdue = activities.filter(a => evalActivity(a, now).status === 'red');
   if(overdue.length > 0){
     new Notification('Cadence — à ne pas oublier', {
       body: overdue.map(a => a.name).join(', ') + ' — il est temps de t\'en occuper.',
