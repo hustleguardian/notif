@@ -859,7 +859,11 @@ if('serviceWorker' in navigator){
 // (desktop and Android alike) and falls back to the constructor otherwise
 // (e.g. file:// pages, where service workers can't register at all).
 async function notify(title, options){
-  const opts = { icon: 'icon-192.png', badge: 'icon-192.png', ...options };
+  // `icon` (full color) shows in the notification body; `badge` is what Android
+  // renders in the status bar — it extracts ONLY the alpha channel and shows it
+  // as a plain white silhouette, so a busy/opaque icon there just becomes a
+  // white square. badge-96.png is a dedicated outline-only asset for that.
+  const opts = { icon: 'icon-192.png', badge: 'badge-96.png', ...options };
   if(swRegistration){
     await swRegistration.showNotification(title, opts);
     return;
