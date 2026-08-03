@@ -681,10 +681,10 @@ async function markDone(id){
 async function removeLastCompletion(id){
   const act = activities.find(a => a.id === id);
   if(!act || act.completions.length === 0) return;
-  act.completions.pop();
+  act.completions = CadenceLogic.undoLastCompletionPeriod(act.completions, act.intervalUnit);
   await saveData();
   render();
-  showToast(`${act.name} — dernier "fait" annulé`);
+  showToast(`${act.name} — annulé`);
 }
 
 let dateSheetActivityId = null;

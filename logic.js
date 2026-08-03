@@ -173,6 +173,27 @@
     return { checkpointId: toFire.id, newState: { date: todayStr, sent: newSent } };
   }
 
+  function startOfWeek(date) {
+    const day = (date.getDay() + 6) % 7; // Monday = 0
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate() - day);
+  }
+
+  function sameCalendarPeriod(a, b, intervalUnit) {
+    if (intervalUnit === 'week') return startOfWeek(a).getTime() === startOfWeek(b).getTime();
+    if (intervalUnit === 'month') return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth();
+    return dateStrDaysAgo(a, 0) === dateStrDaysAgo(b, 0); // day (any intervalCount)
+  }
+
+  // "Annuler" removes every completion from the same day/week/month (matching
+  // the activity's own cadence unit) as the most recent one — not just that
+  // single timestamp — so a burst of accidental repeat taps undoes in one
+  // click instead of requiring one click per stray tap.
+  function undoLastCompletionPeriod(completions, intervalUnit) {
+    if (completions.length === 0) return [];
+    const last = new Date(completions[completions.length - 1]);
+    return completions.filter(ts => !sameCalendarPeriod(new Date(ts), last, intervalUnit));
+  }
+
   function migrateActivity(act, nowIso) {
     if (act.intervalUnit) return act;
     const { period, target, ...rest } = act;
@@ -188,6 +209,7 @@
     getNow, nextDueDate, formatFrequency, computeCycleStatus, migrateActivity,
     dateStrDaysAgo, completionIsoForDateStr, evalActivity, isOutstanding, buildDigest,
     formatDigestNotification, nextCheckpointToFire, priorityLabel, sortTodos,
+    undoLastCompletionPeriod,
   };
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = api;

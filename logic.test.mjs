@@ -6,7 +6,7 @@ const {
   getNow, nextDueDate, formatFrequency, computeCycleStatus, migrateActivity,
   dateStrDaysAgo, completionIsoForDateStr, evalActivity, buildDigest,
   formatDigestNotification, nextCheckpointToFire, isOutstanding,
-  priorityLabel, sortTodos,
+  priorityLabel, sortTodos, undoLastCompletionPeriod,
 } = CadenceLogic;
 
 test('getNow returns real date when no fake date given', () => {
@@ -462,4 +462,54 @@ test('formatDigestNotification: omits the "À faire" line when there are no outs
   const digest = { today: [], week: ['Étirement'], month: [], todo: [], hasDayActivities: false };
   const result = formatDigestNotification(digest);
   assert.equal(result.body, 'Cette semaine : Étirement');
+});
+
+// --- undoLastCompletionPeriod ---
+
+test('undoLastCompletionPeriod: day unit removes every completion from the same calendar day as the last one', () => {
+  const completions = [
+    '2026-03-10T09:00:00.000Z', // an earlier day, should survive
+    '2026-03-15T09:00:00.000Z',
+    '2026-03-15T09:00:01.000Z',
+    '2026-03-15T17:17:55.000Z', // last one, same day as the two above
+  ];
+  const result = undoLastCompletionPeriod(completions, 'day');
+  assert.deepEqual(result, ['2026-03-10T09:00:00.000Z']);
+});
+
+test('undoLastCompletionPeriod: week unit removes every completion from the same Mon-Sun week as the last one', () => {
+  const completions = [
+    '2026-03-01T09:00:00.000Z', // previous week, should survive
+    '2026-03-09T09:00:00.000Z', // Monday of the target week
+    '2026-03-12T09:00:00.000Z', // Thursday, same week
+  ];
+  const result = undoLastCompletionPeriod(completions, 'week');
+  assert.deepEqual(result, ['2026-03-01T09:00:00.000Z']);
+});
+
+test('undoLastCompletionPeriod: month unit removes every completion from the same calendar month as the last one', () => {
+  const completions = [
+    '2026-02-28T09:00:00.000Z', // previous month, should survive
+    '2026-03-01T09:00:00.000Z',
+    '2026-03-31T09:00:00.000Z',
+  ];
+  const result = undoLastCompletionPeriod(completions, 'month');
+  assert.deepEqual(result, ['2026-02-28T09:00:00.000Z']);
+});
+
+test('undoLastCompletionPeriod: a single completion is removed entirely, leaving an empty array', () => {
+  const result = undoLastCompletionPeriod(['2026-03-15T09:00:00.000Z'], 'day');
+  assert.deepEqual(result, []);
+});
+
+test('undoLastCompletionPeriod: an empty array stays empty', () => {
+  const result = undoLastCompletionPeriod([], 'day');
+  assert.deepEqual(result, []);
+});
+
+test('undoLastCompletionPeriod: does not mutate the input array', () => {
+  const completions = ['2026-03-15T09:00:00.000Z', '2026-03-15T10:00:00.000Z'];
+  const original = [...completions];
+  undoLastCompletionPeriod(completions, 'day');
+  assert.deepEqual(completions, original);
 });
