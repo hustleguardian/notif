@@ -589,6 +589,33 @@ document.getElementById('saveBtn').onclick = async () => {
 const notifBtn = document.getElementById('notifBtn');
 const notifLabel = document.getElementById('notifLabel');
 
+let swRegistration = null;
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('sw.js').then(reg => { swRegistration = reg; }).catch(() => {});
+}
+
+// Chrome on Android refuses `new Notification()` ("Illegal constructor") and
+// requires going through a Service Worker's showNotification() instead.
+// This helper prefers that path whenever a service worker is available
+// (desktop and Android alike) and falls back to the constructor otherwise
+// (e.g. file:// pages, where service workers can't register at all).
+async function notify(title, options){
+  if(swRegistration){
+    await swRegistration.showNotification(title, options);
+    return;
+  }
+  if('serviceWorker' in navigator){
+    try{
+      const reg = await navigator.serviceWorker.ready;
+      await reg.showNotification(title, options);
+      return;
+    }catch(e){
+      // fall through to the constructor below
+    }
+  }
+  new Notification(title, options);
+}
+
 function refreshNotifUI(){
   if(!('Notification' in window)){
     notifLabel.textContent = 'Notifications non supportées par ce navigateur';
@@ -623,7 +650,7 @@ notifBtn.onclick = async () => {
 
   if(Notification.permission === 'granted'){
     try{
-      new Notification('Cadence', { body: 'Ceci est un test — si tu vois ça, les notifications marchent.' });
+      await notify('Cadence', { body: 'Ceci est un test — si tu vois ça, les notifications marchent.' });
     }catch(e){
       alert("La permission est accordée mais l'envoi a échoué : " + e.message);
     }
@@ -634,7 +661,7 @@ notifBtn.onclick = async () => {
     const perm = await Notification.requestPermission();
     refreshNotifUI();
     if(perm === 'granted'){
-      new Notification('Cadence', { body: 'Notifications activées ✓' });
+      await notify('Cadence', { body: 'Notifications activées ✓' });
       checkAndNotify();
     } else if(perm === 'denied'){
       alert("Tu as refusé la permission. Tu peux la réactiver dans les réglages du site (icône ⓘ à côté de l'adresse → Autorisations → Notifications).");
@@ -649,9 +676,9 @@ function checkAndNotify(){
   const now = appNow();
   const overdue = activities.filter(a => evalActivity(a, now).status === 'red');
   if(overdue.length > 0){
-    new Notification('Cadence — à ne pas oublier', {
+    notify('Cadence — à ne pas oublier', {
       body: overdue.map(a => a.name).join(', ') + ' — il est temps de t\'en occuper.',
-    });
+    }).catch(() => {});
   }
 }
 
