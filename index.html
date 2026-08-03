@@ -131,7 +131,7 @@
     padding:9px 12px; font-family:inherit; font-weight:600; font-size:12px; cursor:pointer;
   }
   .btn-check:active{transform:scale(0.96);}
-  .btn-check.done{background:var(--card2); color:var(--muted);}
+  .btn-check.todo{background:var(--card2); color:var(--muted);}
   .btn-date{
     background:none; border:1px solid var(--line); color:var(--text); border-radius:10px;
     padding:9px 10px; font-size:13px; cursor:pointer; font-family:inherit;
@@ -580,7 +580,7 @@ function render(){
     const st = evalActivity(act, now);
     const color = colorFor(st.status);
     const outstanding = CadenceLogic.isOutstanding(act, now);
-    const checkLabel = outstanding ? 'Fait ✓' : CadenceLogic.doneButtonLabel(act, now);
+    const checkLabel = outstanding ? 'Pas fait' : 'Fait';
     const freqLabel = CadenceLogic.formatFrequency(act.intervalCount, act.intervalUnit);
     const labels = {green:'à jour', red:'urgent', amber:'à faire', ended:'terminé'};
     const tagClass = st.status === 'ended' ? 'grey' : st.status;
@@ -616,7 +616,7 @@ function render(){
         <div class="actions">
           ${st.status === 'ended' ? '' : `
           <div class="check-row">
-            <button class="btn-check ${outstanding ? '' : 'done'}" onclick="markDone('${act.id}')">${checkLabel}</button>
+            <button class="btn-check ${outstanding ? 'todo' : ''}" onclick="markDone('${act.id}')">${checkLabel}</button>
             <button class="btn-date" onclick="openDateSheet('${act.id}')" title="Choisir une date">📅</button>
           </div>`}
           ${act.completions.length > 0 ? `<button class="btn-del" onclick="removeLastCompletion('${act.id}')">Annuler</button>` : ''}
