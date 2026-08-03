@@ -59,6 +59,17 @@
     };
   }
 
+  function dateStrDaysAgo(now, daysAgo) {
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - daysAgo);
+    const pad = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  }
+
+  function completionIsoForDateStr(dateStr) {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    return new Date(y, m - 1, d, 12, 0, 0, 0).toISOString();
+  }
+
   function migrateActivity(act, nowIso) {
     if (act.intervalUnit) return act;
     const { period, target, ...rest } = act;
@@ -70,7 +81,7 @@
     };
   }
 
-  const api = { getNow, nextDueDate, formatFrequency, computeCycleStatus, migrateActivity };
+  const api = { getNow, nextDueDate, formatFrequency, computeCycleStatus, migrateActivity, dateStrDaysAgo, completionIsoForDateStr };
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = api;
   } else {

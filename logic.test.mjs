@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import CadenceLogic from './logic.js';
 
-const { getNow, nextDueDate, formatFrequency, computeCycleStatus, migrateActivity } = CadenceLogic;
+const { getNow, nextDueDate, formatFrequency, computeCycleStatus, migrateActivity, dateStrDaysAgo, completionIsoForDateStr } = CadenceLogic;
 
 test('getNow returns real date when no fake date given', () => {
   const before = Date.now();
@@ -113,4 +113,48 @@ test('migrateActivity: already-new-schema activity passes through unchanged', ()
   };
   const migrated = migrateActivity(act, '2026-02-01T00:00:00.000Z');
   assert.deepEqual(migrated, act);
+});
+
+test('dateStrDaysAgo: 0 days ago returns the same local calendar date', () => {
+  const now = new Date(2026, 2, 15, 9, 30); // 2026-03-15, local time
+  assert.equal(dateStrDaysAgo(now, 0), '2026-03-15');
+});
+
+test('dateStrDaysAgo: 1 day ago returns yesterday', () => {
+  const now = new Date(2026, 2, 15, 9, 30);
+  assert.equal(dateStrDaysAgo(now, 1), '2026-03-14');
+});
+
+test('dateStrDaysAgo: 2 days ago returns the day before yesterday', () => {
+  const now = new Date(2026, 2, 15, 9, 30);
+  assert.equal(dateStrDaysAgo(now, 2), '2026-03-13');
+});
+
+test('dateStrDaysAgo: crosses a month boundary correctly', () => {
+  const now = new Date(2026, 2, 1, 9, 30); // 2026-03-01
+  assert.equal(dateStrDaysAgo(now, 1), '2026-02-28'); // Feb 2026 has 28 days
+});
+
+test('dateStrDaysAgo: crosses a year boundary correctly', () => {
+  const now = new Date(2026, 0, 1, 9, 30); // 2026-01-01
+  assert.equal(dateStrDaysAgo(now, 1), '2025-12-31');
+});
+
+test('completionIsoForDateStr: produces a timestamp at local noon on the given date', () => {
+  const iso = completionIsoForDateStr('2026-03-15');
+  const d = new Date(iso);
+  assert.equal(d.getFullYear(), 2026);
+  assert.equal(d.getMonth(), 2);
+  assert.equal(d.getDate(), 15);
+  assert.equal(d.getHours(), 12);
+  assert.equal(d.getMinutes(), 0);
+});
+
+test('completionIsoForDateStr composed with dateStrDaysAgo backdates to the right day', () => {
+  const now = new Date(2026, 2, 15, 9, 30);
+  const iso = completionIsoForDateStr(dateStrDaysAgo(now, 1));
+  const d = new Date(iso);
+  assert.equal(d.getFullYear(), 2026);
+  assert.equal(d.getMonth(), 2);
+  assert.equal(d.getDate(), 14);
 });

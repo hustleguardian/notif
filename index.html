@@ -125,13 +125,32 @@
   .seg button.active{background:var(--teal); color:#08201C; font-weight:600;}
 
   .actions{display:flex; flex-direction:column; gap:6px; flex-shrink:0;}
+  .check-row{display:flex; gap:6px;}
   .btn-check{
     background:var(--teal); color:#08201C; border:none; border-radius:10px;
     padding:9px 12px; font-family:inherit; font-weight:600; font-size:12px; cursor:pointer;
   }
   .btn-check:active{transform:scale(0.96);}
+  .btn-date{
+    background:none; border:1px solid var(--line); color:var(--text); border-radius:10px;
+    padding:9px 10px; font-size:13px; cursor:pointer; font-family:inherit;
+  }
+  .btn-date:active{transform:scale(0.96);}
   .btn-del{
     background:none; border:none; color:var(--muted); font-size:11px; cursor:pointer; font-family:inherit;
+  }
+
+  .date-options{display:flex; flex-direction:column; gap:8px; margin-bottom:14px;}
+  .date-options button{
+    background:var(--card2); border:1px solid var(--line); color:var(--text);
+    border-radius:10px; padding:12px; font-family:inherit; font-size:14px; text-align:left; cursor:pointer;
+  }
+  .date-options button:active{transform:scale(0.98);}
+  .date-custom{display:flex; gap:10px; align-items:flex-end;}
+  .date-custom .field{flex:1; margin-bottom:0;}
+  .date-custom button{
+    border:none; border-radius:12px; padding:12px 16px; font-weight:600; font-size:14px;
+    font-family:inherit; cursor:pointer; background:var(--teal); color:#08201C;
   }
 
   .empty{
@@ -223,6 +242,14 @@
       <span id="notifLabel">Notifications désactivées</span>
       <button id="notifBtn">Activer</button>
     </div>
+    <div class="notif-row">
+      <span>Sauvegarde de tes données</span>
+      <span>
+        <button id="exportBtn">Exporter</button>
+        <button id="importBtn">Importer</button>
+      </span>
+      <input type="file" id="importFile" accept="application/json" style="display:none;">
+    </div>
   </header>
 
   <div class="list" id="list"></div>
@@ -280,6 +307,27 @@
     <div class="sheet-actions">
       <button class="cancel" id="cancelBtn">Annuler</button>
       <button class="save" id="saveBtn">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<div class="sheet-bg" id="dateSheetBg">
+  <div class="sheet">
+    <h2>C'était quand ?</h2>
+    <div class="date-options">
+      <button type="button" data-days-ago="0">Aujourd'hui</button>
+      <button type="button" data-days-ago="1">Hier</button>
+      <button type="button" data-days-ago="2">Avant-hier</button>
+    </div>
+    <div class="field">
+      <label>Ou une autre date</label>
+      <div class="date-custom">
+        <input id="backdateInput" type="date">
+        <button type="button" id="backdateValidateBtn">Valider</button>
+      </div>
+    </div>
+    <div class="sheet-actions">
+      <button class="cancel" id="dateSheetCancelBtn">Annuler</button>
     </div>
   </div>
 </div>
@@ -469,7 +517,11 @@ function render(){
           <span class="tag ${tagClass}">${labels[st.status]}</span>
         </div>
         <div class="actions">
-          ${st.status === 'ended' ? '' : `<button class="btn-check" onclick="markDone('${act.id}')">Fait ✓</button>`}
+          ${st.status === 'ended' ? '' : `
+          <div class="check-row">
+            <button class="btn-check" onclick="markDone('${act.id}')">Fait ✓</button>
+            <button class="btn-date" onclick="openDateSheet('${act.id}')" title="Choisir une date">📅</button>
+          </div>`}
           <button class="btn-del" onclick="removeActivity('${act.id}')">Supprimer</button>
         </div>
       </div>
@@ -505,6 +557,43 @@ async function markDone(id){
   render();
   showToast(`${act.name} — marqué comme fait ✓`);
 }
+
+let dateSheetActivityId = null;
+const dateSheetBg = document.getElementById('dateSheetBg');
+const backdateInput = document.getElementById('backdateInput');
+
+function openDateSheet(id){
+  dateSheetActivityId = id;
+  backdateInput.value = '';
+  dateSheetBg.classList.add('show');
+}
+
+function closeDateSheet(){
+  dateSheetBg.classList.remove('show');
+  dateSheetActivityId = null;
+}
+
+async function commitBackdate(dateStr){
+  const act = activities.find(a => a.id === dateSheetActivityId);
+  closeDateSheet();
+  if(!act || !dateStr) return;
+  act.completions.push(CadenceLogic.completionIsoForDateStr(dateStr));
+  await saveData();
+  render();
+  const dateLabel = new Date(dateStr + 'T00:00:00').toLocaleDateString('fr-FR');
+  showToast(`${act.name} — marqué comme fait le ${dateLabel} ✓`);
+}
+
+document.querySelectorAll('.date-options button[data-days-ago]').forEach(btn => {
+  btn.onclick = () => {
+    const daysAgo = parseInt(btn.dataset.daysAgo, 10);
+    commitBackdate(CadenceLogic.dateStrDaysAgo(appNow(), daysAgo));
+  };
+});
+
+document.getElementById('backdateValidateBtn').onclick = () => commitBackdate(backdateInput.value);
+document.getElementById('dateSheetCancelBtn').onclick = () => closeDateSheet();
+dateSheetBg.onclick = (e) => { if(e.target === dateSheetBg) closeDateSheet(); };
 
 async function removeActivity(id){
   activities = activities.filter(a => a.id !== id);
@@ -696,6 +785,42 @@ document.getElementById('resetFakeNowBtn').onclick = async () => {
   await saveFakeNow(null);
   refreshFakeNowUI();
   render();
+};
+
+// Export / import (backup & restore)
+document.getElementById('exportBtn').onclick = () => {
+  const blob = new Blob([JSON.stringify(activities, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `cadence-backup-${appNow().toISOString().slice(0, 10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+const importFileInput = document.getElementById('importFile');
+document.getElementById('importBtn').onclick = () => importFileInput.click();
+
+importFileInput.onchange = async (e) => {
+  const file = e.target.files[0];
+  importFileInput.value = '';
+  if(!file) return;
+  try{
+    const text = await file.text();
+    const parsed = JSON.parse(text);
+    if(!Array.isArray(parsed)) throw new Error('Format invalide — ce n\'est pas une sauvegarde Cadence.');
+    const confirmMsg = activities.length > 0
+      ? `Ça va remplacer tes ${activities.length} activité(s) actuelle(s) par les ${parsed.length} du fichier. Continuer ?`
+      : `Importer ${parsed.length} activité(s) ?`;
+    if(!confirm(confirmMsg)) return;
+    const nowIso = appNow().toISOString();
+    activities = parsed.map(act => CadenceLogic.migrateActivity(act, nowIso));
+    await saveData();
+    render();
+    showToast(`${activities.length} activité(s) importée(s) ✓`);
+  }catch(err){
+    alert("Le fichier n'a pas pu être importé : " + err.message);
+  }
 };
 
 // Check on load, and every 30 min while the app stays open
