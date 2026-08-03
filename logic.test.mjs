@@ -228,6 +228,40 @@ test('buildDigest: hasDayActivities is true even when all day activities are gre
   assert.equal(digest.hasDayActivities, true);
 });
 
+test('buildDigest: a fresh "tous les jours" (daily) activity appears in today even though it is green', () => {
+  const now = new Date(2026, 2, 15, 10, 0);
+  const activities = [
+    { name: 'Muscu', intervalCount: 1, intervalUnit: 'day', createdAt: now.toISOString(), completions: [], endDate: null },
+  ];
+  const digest = buildDigest(activities, now);
+  assert.deepEqual(digest.today, ['Muscu']);
+});
+
+test('buildDigest: a "tous les jours" activity drops out of today once completed today', () => {
+  const now = new Date(2026, 2, 15, 15, 0);
+  const activities = [
+    {
+      name: 'Muscu', intervalCount: 1, intervalUnit: 'day',
+      createdAt: new Date(2026, 2, 14, 10, 0).toISOString(),
+      completions: [new Date(2026, 2, 15, 10, 0).toISOString()],
+      endDate: null,
+    },
+  ];
+  const digest = buildDigest(activities, now);
+  assert.deepEqual(digest.today, []);
+});
+
+test('buildDigest: a non-literal-daily cadence ("tous les 3 jours") still uses the amber/red rule, not the completed-today rule', () => {
+  const now = new Date(2026, 2, 15, 10, 0);
+  const activities = [
+    { name: 'Every 3 days', intervalCount: 3, intervalUnit: 'day', createdAt: now.toISOString(), completions: [], endDate: null },
+  ];
+  const digest = buildDigest(activities, now);
+  // Freshly created 3-day cadence is green (plenty of time left), so it should NOT
+  // show up in today's digest yet — unlike a literal "tous les jours" habit.
+  assert.deepEqual(digest.today, []);
+});
+
 test('buildDigest: hasDayActivities is false when there are no day-unit activities', () => {
   const now = new Date('2026-01-11T00:00:00.000Z');
   const activities = [

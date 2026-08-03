@@ -86,13 +86,23 @@
   }
 
   function buildDigest(activities, now) {
+    const todayStr = dateStrDaysAgo(now, 0);
     const groups = { day: [], week: [], month: [] };
     let hasDayActivities = false;
     for (const act of activities) {
       const st = evalActivity(act, now);
       if (st.status === 'ended') continue;
       if (act.intervalUnit === 'day') hasDayActivities = true;
-      if (st.status === 'amber' || st.status === 'red') {
+
+      // A literal daily habit ("tous les jours") is about "did you do this
+      // today", so it stays outstanding regardless of color until it's
+      // actually been completed today — the amber/red threshold (built for
+      // "close to due") would otherwise hide it for most of the day.
+      const isDailyHabit = act.intervalUnit === 'day' && act.intervalCount === 1;
+      if (isDailyHabit) {
+        const doneToday = act.completions.some(ts => dateStrDaysAgo(new Date(ts), 0) === todayStr);
+        if (!doneToday) groups.day.push(act.name);
+      } else if (st.status === 'amber' || st.status === 'red') {
         groups[act.intervalUnit].push(act.name);
       }
     }
