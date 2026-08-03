@@ -616,10 +616,9 @@ function render(){
         <div class="actions">
           ${st.status === 'ended' ? '' : `
           <div class="check-row">
-            <button class="btn-check ${outstanding ? 'todo' : ''}" onclick="markDone('${act.id}')">${checkLabel}</button>
+            <button class="btn-check ${outstanding ? 'todo' : ''}" onclick="${outstanding ? `markDone('${act.id}')` : `removeLastCompletion('${act.id}')`}">${checkLabel}</button>
             <button class="btn-date" onclick="openDateSheet('${act.id}')" title="Choisir une date">📅</button>
           </div>`}
-          ${act.completions.length > 0 ? `<button class="btn-del" onclick="removeLastCompletion('${act.id}')">Annuler</button>` : ''}
           <button class="btn-del" onclick="removeActivity('${act.id}')">Supprimer</button>
         </div>
       </div>
