@@ -102,6 +102,25 @@
     return st.status === 'amber' || st.status === 'red';
   }
 
+  function daysBetweenLocalDates(from, to) {
+    const utcFrom = Date.UTC(from.getFullYear(), from.getMonth(), from.getDate());
+    const utcTo = Date.UTC(to.getFullYear(), to.getMonth(), to.getDate());
+    return Math.round((utcTo - utcFrom) / MS_PER_DAY);
+  }
+
+  // Label for the "Fait" button when the activity isn't outstanding (see
+  // isOutstanding). Never claims a completion that didn't happen — a fresh
+  // activity with no completions yet keeps the plain "Fait ✓" even though its
+  // button is greyed out for being on-track.
+  function doneButtonLabel(act, now) {
+    if (act.completions.length === 0) return 'Fait ✓';
+    const lastCompletion = new Date(act.completions[act.completions.length - 1]);
+    const daysAgo = daysBetweenLocalDates(lastCompletion, now);
+    if (daysAgo === 0) return 'Fait ajd';
+    if (act.intervalUnit === 'month') return 'Fait ce mois-ci';
+    return `Fait il y a ${daysAgo}j`;
+  }
+
   const PRIORITY_RANK = { high: 0, medium: 1, low: 2 };
   const PRIORITY_LABELS = { high: 'Haute', medium: 'Moyenne', low: 'Basse' };
 
@@ -182,7 +201,7 @@
   const api = {
     getNow, nextDueDate, formatFrequency, computeCycleStatus, migrateActivity,
     dateStrDaysAgo, completionIsoForDateStr, evalActivity, isOutstanding, buildDigest,
-    formatDigestNotification, nextCheckpointToFire, priorityLabel, sortTodos,
+    formatDigestNotification, nextCheckpointToFire, priorityLabel, sortTodos, doneButtonLabel,
   };
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = api;

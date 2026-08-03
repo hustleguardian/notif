@@ -6,7 +6,7 @@ const {
   getNow, nextDueDate, formatFrequency, computeCycleStatus, migrateActivity,
   dateStrDaysAgo, completionIsoForDateStr, evalActivity, buildDigest,
   formatDigestNotification, nextCheckpointToFire, isOutstanding,
-  priorityLabel, sortTodos,
+  priorityLabel, sortTodos, doneButtonLabel,
 } = CadenceLogic;
 
 test('getNow returns real date when no fake date given', () => {
@@ -443,4 +443,61 @@ test('formatDigestNotification: omits the "À faire" line when there are no outs
   const digest = { today: [], week: ['Étirement'], month: [], todo: [], hasDayActivities: false };
   const result = formatDigestNotification(digest);
   assert.equal(result.body, 'Cette semaine : Étirement');
+});
+
+// --- doneButtonLabel ---
+
+test('doneButtonLabel: completed today returns "Fait ajd"', () => {
+  const now = new Date(2026, 2, 15, 18, 0);
+  const act = {
+    intervalCount: 1, intervalUnit: 'day',
+    createdAt: new Date(2026, 2, 14, 9, 0).toISOString(),
+    completions: [new Date(2026, 2, 15, 9, 0).toISOString()],
+    endDate: null,
+  };
+  assert.equal(doneButtonLabel(act, now), 'Fait ajd');
+});
+
+test('doneButtonLabel: monthly cadence completed on an earlier day returns "Fait ce mois-ci"', () => {
+  const now = new Date(2026, 2, 15, 9, 0);
+  const act = {
+    intervalCount: 1, intervalUnit: 'month',
+    createdAt: new Date(2026, 2, 1, 9, 0).toISOString(),
+    completions: [new Date(2026, 2, 10, 9, 0).toISOString()],
+    endDate: null,
+  };
+  assert.equal(doneButtonLabel(act, now), 'Fait ce mois-ci');
+});
+
+test('doneButtonLabel: non-monthly cadence completed N days ago returns "Fait il y a Nj"', () => {
+  const now = new Date(2026, 2, 15, 9, 0);
+  const act = {
+    intervalCount: 3, intervalUnit: 'day',
+    createdAt: new Date(2026, 2, 10, 9, 0).toISOString(),
+    completions: [new Date(2026, 2, 13, 9, 0).toISOString()],
+    endDate: null,
+  };
+  assert.equal(doneButtonLabel(act, now), 'Fait il y a 2j');
+});
+
+test('doneButtonLabel: weekly cadence uses the "il y a Nj" phrasing, not "cette semaine"', () => {
+  const now = new Date(2026, 2, 15, 9, 0);
+  const act = {
+    intervalCount: 1, intervalUnit: 'week',
+    createdAt: new Date(2026, 2, 1, 9, 0).toISOString(),
+    completions: [new Date(2026, 2, 14, 9, 0).toISOString()],
+    endDate: null,
+  };
+  assert.equal(doneButtonLabel(act, now), 'Fait il y a 1j');
+});
+
+test('doneButtonLabel: never completed (fresh activity, no completions) falls back to plain "Fait ✓"', () => {
+  const now = new Date(2026, 2, 15, 9, 0);
+  const act = {
+    intervalCount: 3, intervalUnit: 'day',
+    createdAt: now.toISOString(),
+    completions: [],
+    endDate: null,
+  };
+  assert.equal(doneButtonLabel(act, now), 'Fait ✓');
 });

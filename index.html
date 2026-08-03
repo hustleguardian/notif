@@ -580,6 +580,7 @@ function render(){
     const st = evalActivity(act, now);
     const color = colorFor(st.status);
     const outstanding = CadenceLogic.isOutstanding(act, now);
+    const checkLabel = outstanding ? 'Fait ✓' : CadenceLogic.doneButtonLabel(act, now);
     const freqLabel = CadenceLogic.formatFrequency(act.intervalCount, act.intervalUnit);
     const labels = {green:'à jour', red:'urgent', amber:'à faire', ended:'terminé'};
     const tagClass = st.status === 'ended' ? 'grey' : st.status;
@@ -615,7 +616,7 @@ function render(){
         <div class="actions">
           ${st.status === 'ended' ? '' : `
           <div class="check-row">
-            <button class="btn-check ${outstanding ? '' : 'done'}" onclick="markDone('${act.id}')">Fait ✓</button>
+            <button class="btn-check ${outstanding ? '' : 'done'}" onclick="markDone('${act.id}')">${checkLabel}</button>
             <button class="btn-date" onclick="openDateSheet('${act.id}')" title="Choisir une date">📅</button>
           </div>`}
           ${act.completions.length > 0 ? `<button class="btn-del" onclick="removeLastCompletion('${act.id}')">Annuler</button>` : ''}
