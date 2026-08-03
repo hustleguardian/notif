@@ -5,7 +5,7 @@ import CadenceLogic from './logic.js';
 const {
   getNow, nextDueDate, formatFrequency, computeCycleStatus, migrateActivity,
   dateStrDaysAgo, completionIsoForDateStr, evalActivity, buildDigest,
-  formatDigestNotification, nextCheckpointToFire,
+  formatDigestNotification, nextCheckpointToFire, isOutstanding,
 } = CadenceLogic;
 
 test('getNow returns real date when no fake date given', () => {
@@ -260,6 +260,43 @@ test('buildDigest: a non-literal-daily cadence ("tous les 3 jours") still uses t
   // Freshly created 3-day cadence is green (plenty of time left), so it should NOT
   // show up in today's digest yet — unlike a literal "tous les jours" habit.
   assert.deepEqual(digest.today, []);
+});
+
+// --- isOutstanding ---
+
+test('isOutstanding: a fresh "tous les jours" habit is outstanding (not done today yet)', () => {
+  const now = new Date(2026, 2, 15, 10, 0);
+  const act = { intervalCount: 1, intervalUnit: 'day', createdAt: now.toISOString(), completions: [], endDate: null };
+  assert.equal(isOutstanding(act, now), true);
+});
+
+test('isOutstanding: a "tous les jours" habit already completed today is not outstanding', () => {
+  const now = new Date(2026, 2, 15, 15, 0);
+  const act = {
+    intervalCount: 1, intervalUnit: 'day',
+    createdAt: new Date(2026, 2, 14, 10, 0).toISOString(),
+    completions: [new Date(2026, 2, 15, 9, 0).toISOString()],
+    endDate: null,
+  };
+  assert.equal(isOutstanding(act, now), false);
+});
+
+test('isOutstanding: a fresh non-literal-daily cadence (green) is not outstanding', () => {
+  const now = new Date(2026, 2, 15, 10, 0);
+  const act = { intervalCount: 3, intervalUnit: 'day', createdAt: now.toISOString(), completions: [], endDate: null };
+  assert.equal(isOutstanding(act, now), false);
+});
+
+test('isOutstanding: an overdue weekly activity is outstanding', () => {
+  const now = new Date('2026-01-20T00:00:00.000Z');
+  const act = { intervalCount: 1, intervalUnit: 'week', createdAt: '2026-01-01T00:00:00.000Z', completions: [], endDate: null };
+  assert.equal(isOutstanding(act, now), true);
+});
+
+test('isOutstanding: an ended activity is never outstanding', () => {
+  const now = new Date('2026-01-20T00:00:00.000Z');
+  const act = { intervalCount: 1, intervalUnit: 'day', createdAt: '2020-01-01T00:00:00.000Z', completions: [], endDate: '2020-02-01' };
+  assert.equal(isOutstanding(act, now), false);
 });
 
 test('buildDigest: hasDayActivities is false when there are no day-unit activities', () => {
