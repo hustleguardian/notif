@@ -259,6 +259,11 @@ async function loadData(){
   }catch(e){
     activities = [];
   }
+  const nowIso = new Date().toISOString();
+  const migrated = activities.map(act => CadenceLogic.migrateActivity(act, nowIso));
+  const didMigrate = migrated.some((act, i) => act !== activities[i]);
+  activities = migrated;
+  if(didMigrate) await saveData();
   render();
 }
 
