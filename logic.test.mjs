@@ -330,22 +330,34 @@ test('buildDigest: hasDayActivities is false when there are no day-unit activiti
 
 // --- formatDigestNotification ---
 
-test('formatDigestNotification: lists outstanding items per section', () => {
+test('formatDigestNotification: lists each item on its own dashed line per section', () => {
   const digest = { today: ['Muscu'], week: ['Étirement'], month: ['Don de plasma'], hasDayActivities: true };
   const result = formatDigestNotification(digest);
-  assert.equal(result.body, "Aujourd'hui : Muscu\nCette semaine : Étirement\nCe mois : Don de plasma");
+  assert.equal(
+    result.body,
+    "Aujourd'hui :\n- Muscu\n\nCette semaine :\n- Étirement\n\nCe mois :\n- Don de plasma"
+  );
+});
+
+test('formatDigestNotification: multiple items in the same section each get their own dashed line', () => {
+  const digest = { today: ['Muscu', 'Course'], week: [], month: [], hasDayActivities: true };
+  const result = formatDigestNotification(digest);
+  assert.equal(result.body, "Aujourd'hui :\n- Muscu\n- Course");
 });
 
 test('formatDigestNotification: shows the "tout fait" tick when today is empty but day activities exist', () => {
   const digest = { today: [], week: ['Étirement'], month: ['Don de plasma'], hasDayActivities: true };
   const result = formatDigestNotification(digest);
-  assert.equal(result.body, "Aujourd'hui : tout fait ✓\nCette semaine : Étirement\nCe mois : Don de plasma");
+  assert.equal(
+    result.body,
+    "Aujourd'hui : tout fait ✓\n\nCette semaine :\n- Étirement\n\nCe mois :\n- Don de plasma"
+  );
 });
 
 test('formatDigestNotification: omits the "Aujourd\'hui" line entirely when there are no day-unit activities', () => {
   const digest = { today: [], week: ['Étirement'], month: [], hasDayActivities: false };
   const result = formatDigestNotification(digest);
-  assert.equal(result.body, 'Cette semaine : Étirement');
+  assert.equal(result.body, "Cette semaine :\n- Étirement");
 });
 
 test('formatDigestNotification: empty body when there is nothing to report', () => {
@@ -452,16 +464,16 @@ test('buildDigest: includes undone todos sorted by priority, excludes done ones'
   assert.deepEqual(digest.todo, ['High task', 'Low task']);
 });
 
-test('formatDigestNotification: adds an "À faire" line when todos are outstanding', () => {
+test('formatDigestNotification: adds an "À faire" section with each todo on its own dashed line', () => {
   const digest = { today: [], week: [], month: [], todo: ['High task', 'Low task'], hasDayActivities: false };
   const result = formatDigestNotification(digest);
-  assert.equal(result.body, 'À faire : High task, Low task');
+  assert.equal(result.body, 'À faire :\n- High task\n- Low task');
 });
 
 test('formatDigestNotification: omits the "À faire" line when there are no outstanding todos', () => {
   const digest = { today: [], week: ['Étirement'], month: [], todo: [], hasDayActivities: false };
   const result = formatDigestNotification(digest);
-  assert.equal(result.body, 'Cette semaine : Étirement');
+  assert.equal(result.body, "Cette semaine :\n- Étirement");
 });
 
 // --- undoLastCompletionPeriod ---

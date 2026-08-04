@@ -138,17 +138,21 @@
     return { today: groups.day, week: groups.week, month: groups.month, todo, hasDayActivities };
   }
 
+  function formatDigestSection(label, items) {
+    return `${label} :\n${items.map(item => `- ${item}`).join('\n')}`;
+  }
+
   function formatDigestNotification(digest) {
-    const lines = [];
+    const sections = [];
     if (digest.today.length > 0) {
-      lines.push(`Aujourd'hui : ${digest.today.join(', ')}`);
+      sections.push(formatDigestSection("Aujourd'hui", digest.today));
     } else if (digest.hasDayActivities) {
-      lines.push(`Aujourd'hui : tout fait ✓`);
+      sections.push(`Aujourd'hui : tout fait ✓`);
     }
-    if (digest.week.length > 0) lines.push(`Cette semaine : ${digest.week.join(', ')}`);
-    if (digest.month.length > 0) lines.push(`Ce mois : ${digest.month.join(', ')}`);
-    if (digest.todo && digest.todo.length > 0) lines.push(`À faire : ${digest.todo.join(', ')}`);
-    return { title: 'Cadence', body: lines.join('\n') };
+    if (digest.week.length > 0) sections.push(formatDigestSection('Cette semaine', digest.week));
+    if (digest.month.length > 0) sections.push(formatDigestSection('Ce mois', digest.month));
+    if (digest.todo && digest.todo.length > 0) sections.push(formatDigestSection('À faire', digest.todo));
+    return { title: 'Cadence', body: sections.join('\n\n') };
   }
 
   const CHECKPOINTS = [
